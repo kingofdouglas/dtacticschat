@@ -3,55 +3,55 @@
 <head>
     <title>웹게임 채팅창</title>
     <style>
-        /* ==== [수정] 기본 여백 제거 및 높이/너비 100% 설정 ==== */
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #f4f4f4; font-family: 'Malgun Gothic', sans-serif; box-sizing: border-box; }
+        /* ==== 전체 다크 테마 배경 및 폰트 ==== */
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #363636; font-family: 'Malgun Gothic', '맑은 고딕', dotum, sans-serif; box-sizing: border-box; }
         *, *:before, *:after { box-sizing: inherit; }
 
-        /* ==== [수정] 고정 픽셀(500x250)을 지우고 100%로 변경 ==== */
-        #wrapper { display: flex; width: 100%; height: 100%; background: white; position: relative; }
+        #wrapper { display: flex; width: 100%; height: 100%; background: #363636; position: relative; }
         
-        /* 왼쪽 채팅 영역 */
-        #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #ccc; }
+        /* ==== 왼쪽 채팅 영역 ==== */
+        #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #222; }
         
-        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 2px 4px; list-style-type: none; font-size: 12px; line-height: 1.2; }
-        #messages li { padding: 0; margin-bottom: 2px; display: flex; align-items: flex-start; }
-        #messages img.user-icon { width: 14px; height: 14px; margin-right: 3px; margin-top: 1px; }
-        #messages img.chat-emoticon { width: 40px; height: 40px; vertical-align: middle; }
+        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 13px; line-height: 1.4; color: #ddd; }
+        #messages li { padding: 1px 2px; margin-bottom: 2px; display: flex; align-items: flex-start; word-break: break-all; }
+        
+        /* 스샷과 동일한 아이콘 및 글씨 색상 */
+        .user-icon { width: 14px; height: 14px; margin-right: 4px; margin-top: 2px; border-radius: 2px; }
+        .nickname { color: #5dade2; font-weight: bold; } /* 연파랑 닉네임 */
+        .colon { color: #5dade2; margin-right: 4px; }     /* 파란색 콜론(:) */
+        .msg-text { color: #dfdfdf; }                     /* 밝은 회색 메시지 */
+        .chat-emoticon { width: 40px; height: 40px; vertical-align: middle; }
 
-        /* 하단 입력폼 */
-        #form { display: flex; padding: 2px; background: #ddd; align-items: center; height: 24px; }
-        #emo-toggle-btn { width: 24px; height: 100%; margin-right: 2px; background: #eee; border: 1px solid #ccc; cursor: pointer; font-weight: bold; font-size: 14px; padding: 0; color: #555; }
-        #input { flex: 1; padding: 0 4px; border: 1px solid #ccc; margin-right: 2px; height: 100%; box-sizing: border-box; font-size: 12px; }
-        #form button[type="submit"] { padding: 0 8px; height: 100%; background: #333; color: white; border: none; cursor: pointer; font-size: 12px; }
+        /* ==== 하단 입력폼 (다크) ==== */
+        #form { display: flex; padding: 2px; background: #2b2b2b; align-items: center; height: 26px; border-top: 1px solid #1f1f1f; }
+        #emo-toggle-btn { width: 26px; height: 100%; margin-right: 2px; background: #444; border: 1px solid #222; color: #ccc; cursor: pointer; font-weight: bold; font-size: 14px; padding: 0; }
+        #emo-toggle-btn:hover { background: #555; }
+        #input { flex: 1; padding: 0 4px; background: #1a1a1a; border: 1px solid #444; color: #eee; margin-right: 2px; height: 100%; font-size: 12px; outline: none; }
+        #input:focus { border-color: #5dade2; }
+        #form button[type="submit"] { padding: 0 10px; height: 100%; background: #444; color: white; border: 1px solid #222; cursor: pointer; font-size: 12px; }
+        #form button[type="submit"]:hover { background: #555; }
 
-        /* 이모티콘 팝업창 */
-        #emo-picker {
-            position: absolute;
-            bottom: 28px;
-            left: 2px;
-            width: 210px;
-            background: white;
-            border: 1px solid #ccc;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
-            padding: 5px;
-            display: none; 
-            flex-direction: column;
-            z-index: 100;
-        }
+        /* ==== 이모티콘 팝업창 (다크) ==== */
+        #emo-picker { position: absolute; bottom: 30px; left: 2px; width: 210px; background: #333; border: 1px solid #111; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); padding: 5px; display: none; flex-direction: column; z-index: 100; }
         #emo-list { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-start; min-height: 80px; align-content: flex-start; }
         #emo-list img { width: 36px; height: 36px; cursor: pointer; border: 1px solid transparent; }
-        #emo-list img:hover { border-color: #007bff; background: #f0f8ff; }
-        
-        #emo-pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px; font-size: 11px; }
-        #emo-pagination button { background: none; border: 1px solid #ccc; cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 11px; background-color: #f9f9f9; }
-        #emo-pagination button:disabled { color: #aaa; border-color: #eee; cursor: not-allowed; background-color: transparent; }
+        #emo-list img:hover { border-color: #5dade2; background: #444; }
+        #emo-pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; border-top: 1px solid #444; padding-top: 5px; font-size: 11px; color: #ccc; }
+        #emo-pagination button { background: #444; border: 1px solid #222; color: #ccc; cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 11px; }
+        #emo-pagination button:disabled { color: #666; border-color: #333; cursor: not-allowed; background-color: transparent; }
 
-        /* 오른쪽 접속자 명단 (접속자 명단 가로폭은 110px로 유지, 화면이 좁아지거나 넓어지면 왼쪽 채팅창 크기만 반응함) */
-        #user-list-container { width: 110px; display: flex; flex-direction: column; background: #fafafa; }
-        #user-list-header { padding: 3px; background: #333; color: white; text-align: center; font-size: 11px; font-weight: bold; }
-        #users { flex: 1; overflow-y: auto; margin: 0; padding: 5px; list-style-type: none; font-size: 11px; }
-        #users li { padding: 2px 0; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        #users img.icon { width: 12px; height: 12px; margin-right: 4px; }
+        /* ==== 오른쪽 접속자 명단 (다크) ==== */
+        #user-list-container { width: 130px; display: flex; flex-direction: column; background: #303030; }
+        /* 스샷에 헤더가 없으므로 헤더 영역 숨김 처리 */
+        #user-list-header { display: none; } 
+        #users { flex: 1; overflow-y: auto; margin: 0; padding: 5px; list-style-type: none; font-size: 13px; color: #ddd; }
+        #users li { padding: 3px 2px; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* ==== 커스텀 스크롤바 (다크 테마용) ==== */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #2b2b2b; }
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #777; }
     </style>
 </head>
 <body>
@@ -172,6 +172,7 @@
             }
         });
 
+        // ==== [수정] 스크린샷과 동일한 출력 형태 (대괄호 제거, 파란색 닉네임) ====
         socket.on('chat message', function(data) {
             const item = document.createElement('li');
             const userIconHtml = data.user.icon ? `<img src="${data.user.icon}" class="user-icon">` : '';
@@ -180,23 +181,28 @@
             if (data.type === 'image') {
                 messageContent = `<img src="${data.content}" class="chat-emoticon">`;
             } else {
-                messageContent = data.content;
+                messageContent = `<span class="msg-text">${data.content}</span>`;
             }
 
+            // [닉네임] 대신 -> 아이콘 닉네임: 메시지 형태로 변경
             item.innerHTML = `
-                <div>${userIconHtml}<b>[${data.user.nick}]</b>&nbsp;</div>
-                <div style="word-break: break-all;">${messageContent}</div>
+                <div>
+                    ${userIconHtml}
+                    <span class="nickname">${data.user.nick}</span><span class="colon">:</span>
+                </div>
+                &nbsp;<div>${messageContent}</div>
             `;
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         });
 
+        // ==== [수정] 접속자 목록에도 동일한 아이콘 클래스 적용 ====
         socket.on('user list', function(users) {
             usersList.innerHTML = '';
             users.forEach(user => {
                 const li = document.createElement('li');
-                const iconHtml = user.icon ? `<img src="${user.icon}" class="icon">` : '';
-                li.innerHTML = `${iconHtml}${user.nick}`;
+                const iconHtml = user.icon ? `<img src="${user.icon}" class="user-icon">` : '';
+                li.innerHTML = `${iconHtml}<span class="nickname" style="font-weight:normal; color:#ddd;">${user.nick}</span>`;
                 usersList.appendChild(li);
             });
         });

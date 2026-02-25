@@ -6,18 +6,13 @@ const fs = require('fs');
 const path = require('path');
 
 let chatHistory = [];
+const connectedUsers = {};
+const mutedIds = new Set();
+const ADMIN_IDS = ['dirtyass', 'dirtyass2', 'master']; // 관리자 ID 목록 통합
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ★ 여기에 실제 웹게임의 관리자 ID(아이디 검사용)를 적어주세요!
-const ADMIN_ID = 'master'; 
-
-const connectedUsers = {};
-const mutedIds = new Set(); // 채팅이 금지된 유저 ID를 기억하는 공간
-
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
-});
+app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
 
 app.get('/api/emoticons', (req, res) => {
     const emoticonsDir = path.join(__dirname, 'public', 'emoticons');
@@ -29,88 +24,29 @@ app.get('/api/emoticons', (req, res) => {
 });
 
 io.on('connection', (socket) => {
+    // 1. 유저 입장
     socket.on('join', (userData) => {
+        socket.user = userData;
         connectedUsers[socket.id] = userData;
-        io.emit('user list', Object.values(connectedUsers));
-    });
 
-    // 일반 채팅 메시지 처리
-    socket.on('chat message', (data) => {
-        const senderId = connectedUsers[socket.id]?.id;
-        
-        // 만약 보낸 사람이 금지(Mute) 명단에 있다면? -> 본인에게만 시스템 메시지 전송
-        if (mutedIds.has(senderId)) {
-            socket.emit('system message', '관리자에 의해 채팅이 금지된 상태입니다.');
-            return;
-        }
-        io.emit('chat message', data);
-    });
-
-    // ★ 귓속말 기능 처리
-    socket.on('whisper', (data) => {
-        let targetSocketId = null;
-        // 닉네임으로 대상의 소켓 ID 찾기
-        for (let sid in connectedUsers) {
-            if (connectedUsers[sid].nick === data.targetNick) {
-                targetSocketId = sid;
-                break;
-            }
-        }
-        if (targetSocketId) {
-            // 상대방과 나 자신에게 귓속말 전송
-            io.to(targetSocketId).emit('whisper', data);
-            socket.emit('whisper', data); 
-        } else {
-            socket.emit('system message', '현재 접속해 있지 않은 유저입니다.');
-        }
-    });
-
-    // ★ 관리자 기능 (채팅 금지, 해제, 지우기)
-    socket.on('mute user', (targetId) => {
-        if (connectedUsers[socket.id]?.id === ADMIN_ID) {
-            mutedIds.add(targetId);
-            socket.emit('system message', `해당 유저의 채팅을 금지했습니다.`);
-        }
-    });
-
-    socket.on('unmute user', (targetId) => {
-        if (connectedUsers[socket.id]?.id === ADMIN_ID) {
-            mutedIds.delete(targetId);
-            socket.emit('system message', `해당 유저의 채팅 금지를 해제했습니다.`);
-        }
-    });
-
-    socket.on('clear chat', () => {
-        if (connectedUsers[socket.id]?.id === ADMIN_ID) {
-            io.emit('clear chat'); // 접속한 모든 사람의 채팅창을 지움
-        }
-    });
-
-    socket.on('disconnect', () => {
-        if (connectedUsers[socket.id]) {
-            delete connectedUsers[socket.id];
-            io.emit('user list', Object.values(connectedUsers));
-        }
-    });
-});
-
-// 접속시 채팅기록
-io.on('connection', (socket) => {
-    // 유저가 접속(join)했을 때
-    socket.on('join', (user) => {
-        socket.user = user;
-        
-        // [추가] 새로 들어온 유저에게만 이전 기록 10개를 전송
+        // 접속 시 이전 기록 전송
         if (chatHistory.length > 0) {
             socket.emit('chat history', chatHistory);
         }
 
-        io.emit('system message', `${user.nick}님이 입장하셨습니다.`);
-        updateUserList();
+        io.emit('system message', `${userData.nick}님이 입장하셨습니다.`);
+        io.emit('user list', Object.values(connectedUsers));
     });
 
+    // 2. 일반 채팅 메시지 처리
     socket.on('chat message', (data) => {
-        // 메시지 데이터 저장
+        const senderId = connectedUsers[socket.id]?.id;
+        
+        if (mutedIds.has(senderId)) {
+            socket.emit('system message', '관리자에 의해 채팅이 금지된 상태입니다.');
+            return;
+        }
+
         const msgData = {
             type: data.type,
             user: data.user,
@@ -118,22 +54,63 @@ io.on('connection', (socket) => {
             timestamp: Date.now()
         };
 
-        // 기록 배열에 추가하고 10개만 남기기
+        // 기록 저장 (최근 10개)
         chatHistory.push(msgData);
-        if (chatHistory.length > 10) {
-            chatHistory.shift(); // 제일 오래된 첫 번째 요소 삭제
+        if (chatHistory.length > 10) chatHistory.shift();
+
+        io.emit('chat message', msgData);
+    });
+
+    // 3. 귓속말 기능
+    socket.on('whisper', (data) => {
+        let targetSocketId = null;
+        for (let sid in connectedUsers) {
+            if (connectedUsers[sid].nick === data.targetNick) {
+                targetSocketId = sid;
+                break;
+            }
         }
-
-        io.emit('chat message', data);
+        if (targetSocketId) {
+            const whisperData = { ...data, timestamp: Date.now() };
+            io.to(targetSocketId).emit('whisper', whisperData);
+            socket.emit('whisper', whisperData); 
+        } else {
+            socket.emit('system message', '현재 접속해 있지 않은 유저입니다.');
+        }
     });
 
-    // 관리자가 채팅 청소할 때 기록도 삭제
+    // 4. 관리자 기능
+    socket.on('mute user', (targetId) => {
+        if (ADMIN_IDS.includes(connectedUsers[socket.id]?.id)) {
+            mutedIds.add(targetId);
+            socket.emit('system message', `해당 유저(ID: ${targetId})의 채팅을 금지했습니다.`);
+        }
+    });
+
+    socket.on('unmute user', (targetId) => {
+        if (ADMIN_IDS.includes(connectedUsers[socket.id]?.id)) {
+            mutedIds.delete(targetId);
+            socket.emit('system message', `해당 유저(ID: ${targetId})의 채팅 금지를 해제했습니다.`);
+        }
+    });
+
     socket.on('clear chat', () => {
-        chatHistory = [];
-        io.emit('clear chat');
+        if (ADMIN_IDS.includes(connectedUsers[socket.id]?.id)) {
+            chatHistory = []; // 메모리 기록도 삭제
+            io.emit('clear chat');
+        }
+    });
+
+    // 5. 퇴장 처리
+    socket.on('disconnect', () => {
+        if (connectedUsers[socket.id]) {
+            const nick = connectedUsers[socket.id].nick;
+            delete connectedUsers[socket.id];
+            io.emit('system message', `${nick}님이 퇴장하셨습니다.`);
+            io.emit('user list', Object.values(connectedUsers));
+        }
     });
 });
+
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => {
-    console.log(`서버가 ${PORT} 포트에서 실행 중입니다.`);
-});
+http.listen(PORT, () => { console.log(`서버 실행 중: ${PORT}`); });

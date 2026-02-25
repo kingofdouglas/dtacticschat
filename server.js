@@ -1,27 +1,35 @@
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
-const io = require('socket.io')(http, {
-    cors: { origin: "*" } // 웹게임 서버에서 접속할 수 있게 허용
-});
+const io = require('socket.io')(http, { cors: { origin: "*" } });
 
-// index.html 파일을 메인 화면으로 보여줌
+// 접속 중인 유저 정보를 담아둘 공간
+const connectedUsers = {};
+
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/index.html');
 });
 
-// 누군가 웹소켓으로 접속했을 때
 io.on('connection', (socket) => {
-    console.log('유저가 접속했습니다.');
+    // 1. 유저가 처음 들어와서 자기 정보를 보낼 때
+    socket.on('join', (userData) => {
+        // 소켓 ID를 키값으로 유저 정보(닉네임, 아이디, 아이콘) 저장
+        connectedUsers[socket.id] = userData;
+        // 전체 방에 갱신된 접속자 목록 전송
+        io.emit('user list', Object.values(connectedUsers));
+    });
 
-    // 클라이언트로부터 'chat message'를 받으면
+    // 2. 메시지를 보냈을 때
     socket.on('chat message', (data) => {
-        // 접속한 '모든' 사람에게 다시 쏴줍니다.
         io.emit('chat message', data);
     });
 
+    // 3. 유저가 나갔을 때 (창을 닫거나 새로고침 시)
     socket.on('disconnect', () => {
-        console.log('유저가 나갔습니다.');
+        if (connectedUsers[socket.id]) {
+            delete connectedUsers[socket.id]; // 명단에서 삭제
+            io.emit('user list', Object.values(connectedUsers)); // 갱신된 명단 다시 전송
+        }
     });
 });
 

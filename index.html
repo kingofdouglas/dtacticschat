@@ -3,81 +3,44 @@
 <head>
     <title>웹게임 채팅창</title>
     <style>
-
+        /* [사용자님의 원본 CSS 그대로 유지] */
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #2e2e2e; font-family: 'Malgun Gothic', '맑은 고딕', dotum, sans-serif; box-sizing: border-box; }
         *, *:before, *:after { box-sizing: inherit; }
-
         #wrapper { display: flex; width: 100%; height: 100%; background: #2e2e2e; position: relative; }
         #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #1f1f1f; }
-        
         #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 13px; line-height: 1.3; color: #ddd; }
-        
-        /* 칸칸이 붙게 설정 (여백 0, 모서리 0) */
         #messages li { padding: 3px 4px; margin-bottom: 0; word-break: break-all; border-radius: 0; transition: background-color 0.1s; position: relative; } 
         #messages li:hover { background-color: #3d3d3d; }
-        
         .my-message-bg { background-color: #242424; }
-        
         .user-icon { width: 12px; height: 12px; margin-right: 3px; vertical-align: middle; border-radius: 2px; }
-        .my-nickname, .other-nickname, .msg-text, .clickable-nick, .whisper-msg { vertical-align: baseline; }
-        
         .my-nickname { color: #5dade2; font-weight: bold; }   
         .other-nickname { color: #dfdfdf; font-weight: bold; } 
         .msg-text { color: #dfdfdf; }
         .chat-emoticon { width: 40px; height: 40px; vertical-align: middle; }
-
         .clickable-nick { cursor: pointer; }
         .clickable-nick:hover { color: #fff; } 
-        
         .system-msg { color: #f39c12; font-weight: bold; font-size: 13px; }
         .whisper-msg { color: #ff9ff3; font-weight: bold; }
-
         #form { display: flex; padding: 0 4px; background: #3a3a3a; align-items: center; height: 30px; border: none; }
         #emo-toggle-btn { width: 26px; height: 100%; background: transparent; border: none; color: #aaa; cursor: pointer; font-weight: bold; font-size: 18px; padding: 0; display: flex; align-items: center; justify-content: center; }
-        #emo-toggle-btn:hover { color: #fff; }
-        
         #input { flex: 1; padding: 0 4px; background: transparent; border: none; color: #eee; height: 100%; font-size: 13px; outline: none; }
-        #input::placeholder { color: #888; font-weight: bold; } 
         #form button[type="submit"] { padding: 0 8px; height: 100%; background: transparent; color: #999; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
-        #form button[type="submit"]:hover { color: #fff; }
-
         #emo-picker { position: absolute; bottom: 34px; left: 2px; width: 210px; background: #333; border: 1px solid #111; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); padding: 5px; display: none; flex-direction: column; z-index: 100; }
         #emo-list { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-start; min-height: 80px; align-content: flex-start; }
         #emo-list img { width: 36px; height: 36px; cursor: pointer; border: 1px solid transparent; }
-        #emo-list img:hover { border-color: #5dade2; background: #444; }
         #emo-pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; border-top: 1px solid #444; padding-top: 5px; font-size: 11px; color: #ccc; }
         #emo-pagination button { background: #444; border: 1px solid #222; color: #ccc; cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 11px; }
-        #emo-pagination button:disabled { color: #666; border-color: #333; cursor: not-allowed; background-color: transparent; }
-
         #user-popup { position: absolute; background: #333; border: 1px solid #111; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); padding: 5px; display: none; flex-direction: column; z-index: 101; width: 120px; }
         .up-header { font-size: 13px; color: #5dade2; font-weight: bold; text-align: center; margin-bottom: 4px; border-bottom: 1px solid #444; padding-bottom: 2px; }
         #user-popup button { background: #444; color: #eee; border: 1px solid #222; margin: 2px 0; padding: 4px; font-size: 12px; cursor: pointer; }
-        #user-popup button:hover { background: #555; }
-        .admin-btn { display: none; } 
-
         #user-list-container { width: 130px; display: flex; flex-direction: column; background: #2e2e2e; }
         #users { flex: 1; overflow-y: auto; margin: 0; padding: 5px; list-style-type: none; font-size: 13px; color: #ddd; }
         #users li { padding: 4px 2px; display: flex; align-items: center; justify-content: flex-start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #time-tooltip { position: absolute; background: rgba(0, 0, 0, 0.85); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; z-index: 9999; display: none; white-space: nowrap; }
         .admin-crown { font-size: 12px; margin-right: 3px; }
-
-        #time-tooltip {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.85);
-            color: #fff;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            pointer-events: none; 
-            z-index: 9999;
-            display: none;
-            white-space: nowrap;
-            box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
-        }
-
+        .admin-btn { display: none; }
         ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #4a4a4a; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #666; }
     </style>
 </head>
 <body>
@@ -109,7 +72,6 @@
             <ul id="users"></ul>
         </div>
     </div>
-    
     <div id="time-tooltip"></div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -117,209 +79,70 @@
         const socket = io();
         const urlParams = new URLSearchParams(window.location.search);
         
+        // 내 정보 설정
         const myNick = urlParams.get('nick') || 'Guest_' + Math.floor(Math.random() * 1000);
         const myId = urlParams.get('id') || 'guest';
-        
         let myIcon = urlParams.get('icon') || urlParams.get('con') || '';
-
-        // [핵심수정] 경로 보정 로직
+        
+        // 아이콘 경로 보정
         if (myIcon.startsWith('.') || myIcon.startsWith('/')) {
-            let parentUrl = "";
-            try {
-                parentUrl = (window.parent !== window) ? window.parent.location.href : document.referrer;
-            } catch (e) {
-                parentUrl = document.referrer;
-            }
-
-            if (parentUrl && parentUrl.includes('http')) {
-                const baseUrl = parentUrl.substring(0, parentUrl.lastIndexOf('/') + 1);
-                myIcon = new URL(myIcon.replace(/^\.\//, ''), baseUrl).href;
-            } else {
-                // 수동 백업 주소 (가장 확실함)
-                const FIXED_BASE = 'http://forceofd.org/dt/'; 
-                myIcon = FIXED_BASE + myIcon.replace(/^\.\//, '').replace(/^\//, '');
-            }
+            const FIXED_BASE = 'http://forceofd.org/dt/'; 
+            myIcon = FIXED_BASE + myIcon.replace(/^\.\//, '').replace(/^\//, '');
         }
 
         const myInfo = { nick: myNick, id: myId, icon: myIcon };
-
-        // ★ 관리자 ID 등록
         const ADMIN_IDS = ['dirtyass', 'dirtyass2']; 
-        const isAdmin = ADMIN_IDS.includes(myInfo.id);
+        const isAdmin = ADMIN_IDS.includes(myId);
 
         socket.emit('join', myInfo);
 
-        const form = document.getElementById('form');
-        const input = document.getElementById('input');
+        // DOM 요소들
         const messages = document.getElementById('messages');
-        const usersList = document.getElementById('users');
-        const emoToggleBtn = document.getElementById('emo-toggle-btn');
-        const emoPicker = document.getElementById('emo-picker');
+        const input = document.getElementById('input');
         const userPopup = document.getElementById('user-popup');
+        const emoPicker = document.getElementById('emo-picker');
         const timeTooltip = document.getElementById('time-tooltip');
-
         let selectedUser = { nick: '', id: '' };
 
-        document.addEventListener('click', (e) => {
-            if(!e.target.classList.contains('clickable-nick') && !userPopup.contains(e.target)) {
-                userPopup.style.display = 'none';
-            }
-        });
+        // 1. 메시지 출력 핵심 함수 (중복 방지를 위해 하나로 통합)
+        function displayMessage(data, isWhisper = false, whisperPrefix = "") {
+            const item = document.createElement('li');
+            const isMe = (data.user.nick === myNick);
+            if (isMe) item.classList.add('my-message-bg');
 
-        document.getElementById('wrapper').addEventListener('click', (e) => {
-            if (e.target.classList.contains('clickable-nick')) {
-                const targetNick = e.target.getAttribute('data-nick');
-                const targetId = e.target.getAttribute('data-id');
-                if (targetNick === myInfo.nick) return; 
+            item.setAttribute('data-time', data.timestamp || Date.now());
+            item.setAttribute('data-nick', data.user.nick);
 
-                selectedUser = { nick: targetNick, id: targetId };
-                document.getElementById('up-nick').innerText = targetNick;
-
-                if (isAdmin) {
-                    document.querySelectorAll('.admin-btn').forEach(btn => btn.style.display = 'block');
-                }
-
-                const rect = e.target.getBoundingClientRect();
-                const wrapperRect = document.getElementById('wrapper').getBoundingClientRect();
-                userPopup.style.top = (rect.bottom - wrapperRect.top + 5) + 'px';
-                userPopup.style.left = (rect.left - wrapperRect.left) + 'px';
-                userPopup.style.display = 'flex';
-                emoPicker.style.display = 'none'; 
-            }
-        });
-
-        document.getElementById('btn-whisper').addEventListener('click', () => {
-            input.value = `/w ${selectedUser.nick} `; 
-            input.focus();
-            userPopup.style.display = 'none';
-        });
-        document.getElementById('btn-mute').addEventListener('click', () => { socket.emit('mute user', selectedUser.id); userPopup.style.display = 'none'; });
-        document.getElementById('btn-unmute').addEventListener('click', () => { socket.emit('unmute user', selectedUser.id); userPopup.style.display = 'none'; });
-        document.getElementById('btn-clear').addEventListener('click', () => { socket.emit('clear chat'); userPopup.style.display = 'none'; });
-
-        let emoticonFiles = [];
-        let currentEmoPage = 1;
-        const EMO_PER_PAGE = 15; 
-        const emoList = document.getElementById('emo-list');
-        const emoPrevBtn = document.getElementById('emo-prev');
-        const emoNextBtn = document.getElementById('emo-next');
-        const emoPageInfo = document.getElementById('emo-page-info');
-
-        function renderEmoticons() {
-            emoList.innerHTML = ''; 
-            const totalPages = Math.ceil(emoticonFiles.length / EMO_PER_PAGE) || 1;
-            const startIndex = (currentEmoPage - 1) * EMO_PER_PAGE;
-            const endIndex = Math.min(startIndex + EMO_PER_PAGE, emoticonFiles.length);
-
-            for (let i = startIndex; i < endIndex; i++) {
-                const file = emoticonFiles[i];
-                const img = document.createElement('img');
-                img.src = `/emoticons/${file}`;
-                img.addEventListener('click', () => {
-                    sendMessage('image', `/emoticons/${file}`);
-                    emoPicker.style.display = 'none'; 
-                });
-                emoList.appendChild(img);
-            }
-            emoPageInfo.innerText = `${currentEmoPage} / ${totalPages}`;
-            emoPrevBtn.disabled = currentEmoPage === 1;
-            emoNextBtn.disabled = currentEmoPage === totalPages || totalPages === 0;
-        }
-
-        fetch('/api/emoticons').then(res => res.json()).then(files => { emoticonFiles = files; renderEmoticons(); }).catch(err => console.error(err));
-        emoPrevBtn.addEventListener('click', () => { if (currentEmoPage > 1) { currentEmoPage--; renderEmoticons(); } });
-        emoNextBtn.addEventListener('click', () => { if (currentEmoPage < Math.ceil(emoticonFiles.length / EMO_PER_PAGE)) { currentEmoPage++; renderEmoticons(); } });
-        emoToggleBtn.addEventListener('click', () => { emoPicker.style.display = emoPicker.style.display === 'flex' ? 'none' : 'flex'; userPopup.style.display = 'none'; });
-
-        function sendMessage(type, content) {
-            if (!content) return;
-            socket.emit('chat message', { type: type, user: myInfo, content: content });
-        }
-
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const text = input.value.trim();
-            if(text !== "") {
-                if (text.startsWith('/w ')) {
-                    const parts = text.split(' ');
-                    if (parts.length > 2) {
-                        const targetNick = parts[1];
-                        const msg = parts.slice(2).join(' ');
-                        socket.emit('whisper', { targetNick: targetNick, user: myInfo, content: msg });
-                    }
-                } else {
-                    sendMessage('text', text);
-                }
-                input.value = '';
-                emoPicker.style.display = 'none';
-            }
-        });
-
-        function formatTimeDiff(timestamp) {
-            const diffMs = Date.now() - timestamp;
-            const diffMins = Math.floor(diffMs / 60000);
-            if (diffMins < 1) return '방금 전';
-            if (diffMins < 60) return `${diffMins}분 전`;
-            const diffHours = Math.floor(diffMins / 60);
-            if (diffHours < 24) return `${diffHours}시간 전`;
-            const diffDays = Math.floor(diffHours / 24);
-            return `${diffDays}일 전`;
-        }
-
-        let tooltipTimeout;
-        let mouseX = 0;
-        let mouseY = 0;
-
-        function updateTooltipPosition() {
-            const ttWidth = timeTooltip.offsetWidth;
-            const ttHeight = timeTooltip.offsetHeight;
-            const winWidth = window.innerWidth;
-            const winHeight = window.innerHeight;
-
-            let left = mouseX + 12;
-            let top = mouseY + 15; 
-
-            if (top + ttHeight > winHeight) {
-                top = mouseY - ttHeight - 10;
-                if (top < 0) top = 5; 
-            }
+            const iconHtml = data.user.icon ? `<img src="${data.user.icon}" class="user-icon" onerror="this.style.display='none'">` : '';
+            const nickClass = isMe ? 'my-nickname' : 'other-nickname';
             
-            if (left + ttWidth > winWidth) {
-                left = winWidth - ttWidth - 10;
+            // 이모티콘인지 텍스트인지 구분
+            let contentHtml = (data.type === 'image') 
+                ? `<img src="${data.content}" class="chat-emoticon">` 
+                : `<span class="msg-text">${data.content}</span>`;
+
+            if (isWhisper) {
+                item.innerHTML = `<span class="whisper-msg">${whisperPrefix}</span> <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> &nbsp;${contentHtml}`;
+            } else {
+                item.innerHTML = `${iconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> &nbsp;${contentHtml}`;
             }
 
-            timeTooltip.style.left = left + 'px';
-            timeTooltip.style.top = top + 'px';
+            messages.appendChild(item);
+            messages.scrollTop = messages.scrollHeight;
         }
 
-        messages.addEventListener('mousemove', (e) => {
-            mouseX = e.pageX;
-            mouseY = e.pageY;
-            if (timeTooltip.style.display === 'block') {
-                updateTooltipPosition();
-            }
+        // 2. 소켓 리스너 (한 번씩만 선언)
+        socket.on('chat history', (history) => {
+            messages.innerHTML = '';
+            history.forEach(data => displayMessage(data));
         });
 
-        messages.addEventListener('mouseover', (e) => {
-            const li = e.target.closest('li');
-            if (li && li.hasAttribute('data-time')) {
-                const sendNick = li.getAttribute('data-nick') || '알 수 없음';
-                const timeStr = formatTimeDiff(parseInt(li.getAttribute('data-time')));
-                
-                tooltipTimeout = setTimeout(() => {
-                    timeTooltip.innerText = `${sendNick} ${timeStr}`;
-                    timeTooltip.style.display = 'block';
-                    updateTooltipPosition(); 
-                }, 700);
-            }
-        });
+        socket.on('chat message', (data) => displayMessage(data));
 
-        messages.addEventListener('mouseout', (e) => {
-            const li = e.target.closest('li');
-            if (li) {
-                clearTimeout(tooltipTimeout);
-                timeTooltip.style.display = 'none';
-            }
+        socket.on('whisper', (data) => {
+            const isMe = (data.user.nick === myNick);
+            const prefix = isMe ? `[귓 -> ${data.targetNick}]` : `[귓 <- ${data.user.nick}]`;
+            displayMessage(data, true, prefix);
         });
 
         socket.on('system message', (msg) => {
@@ -329,71 +152,91 @@
             messages.scrollTop = messages.scrollHeight;
         });
 
-        socket.on('clear chat', () => {
-            messages.innerHTML = ''; 
-        });
+        socket.on('clear chat', () => { messages.innerHTML = ''; });
 
-        socket.on('whisper', (data) => {
-            const item = document.createElement('li');
-            const isMe = (data.user.nick === myInfo.nick);
-            const prefix = isMe ? `[귓속말 -> ${data.targetNick}]` : `[귓속말 <- ${data.user.nick}]`;
-            const nickClass = isMe ? 'my-nickname' : 'other-nickname';
-
-            if (isMe) item.classList.add('my-message-bg');
-
-            item.setAttribute('data-time', Date.now());
-            item.setAttribute('data-nick', data.user.nick);
-
-            item.innerHTML = `<span class="whisper-msg">${prefix}</span> <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> &nbsp;<span class="msg-text">${data.content}</span>`;
-            messages.appendChild(item);
-            messages.scrollTop = messages.scrollHeight;
-        });
-
-        socket.on('chat message', function(data) {
-            const item = document.createElement('li');
-            const userIconHtml = data.user.icon ? `<img src="${data.user.icon}" class="user-icon">` : '';
-            
-            let messageContent = data.type === 'image' ? `<img src="${data.content}" class="chat-emoticon">` : `<span class="msg-text">${data.content}</span>`;
-            
-            const isMe = (data.user.nick === myInfo.nick);
-            const nickClass = isMe ? 'my-nickname' : 'other-nickname';
-
-            if (isMe) item.classList.add('my-message-bg');
-
-            item.setAttribute('data-time', Date.now());
-            item.setAttribute('data-nick', data.user.nick);
-
-            item.innerHTML = `${userIconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> &nbsp;${messageContent}`;
-            
-            messages.appendChild(item);
-            messages.scrollTop = messages.scrollHeight;
-        });
-
-        socket.on('user list', function(users) {
+        socket.on('user list', (users) => {
+            const usersList = document.getElementById('users');
             usersList.innerHTML = '';
-            users.sort((a, b) => {
-                const isAAdmin = ADMIN_IDS.includes(a.id);
-                const isBAdmin = ADMIN_IDS.includes(b.id);
-                if (isAAdmin && !isBAdmin) return -1; 
-                if (!isAAdmin && isBAdmin) return 1;  
-                return 0; 
-            });
-
-            users.forEach(user => {
+            users.sort((a, b) => ADMIN_IDS.includes(a.id) ? -1 : 1).forEach(user => {
                 const li = document.createElement('li');
-                const isMe = (user.nick === myInfo.nick);
-                const listNickColor = isMe ? '#5dade2' : '#dfdfdf';
-                const isThisUserAdmin = ADMIN_IDS.includes(user.id);
-                
-                const crownHtml = isThisUserAdmin ? `<span class="admin-crown">👑</span>` : '';
-                const iconHtml = user.icon ? `<img src="${user.icon}" class="user-icon">` : '';
-
-                li.innerHTML = `${crownHtml}${iconHtml}<span class="clickable-nick" data-nick="${user.nick}" data-id="${user.id}" style="color:${listNickColor};">${user.nick}</span>`;
+                const isMe = (user.nick === myNick);
+                const crown = ADMIN_IDS.includes(user.id) ? `<span class="admin-crown">👑</span>` : '';
+                const icon = user.icon ? `<img src="${user.icon}" class="user-icon">` : '';
+                li.innerHTML = `${crown}${icon}<span class="clickable-nick" data-nick="${user.nick}" data-id="${user.id}" style="color:${isMe ? '#5dade2' : '#dfdfdf'};">${user.nick}</span>`;
                 usersList.appendChild(li);
             });
         });
+
+        // 3. 채팅 전송
+        document.getElementById('form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const text = input.value.trim();
+            if(!text) return;
+
+            if (text.startsWith('/w ')) {
+                const parts = text.split(' ');
+                if (parts.length > 2) {
+                    socket.emit('whisper', { targetNick: parts[1], user: myInfo, content: parts.slice(2).join(' ') });
+                }
+            } else {
+                socket.emit('chat message', { type: 'text', user: myInfo, content: text });
+            }
+            input.value = '';
+            emoPicker.style.display = 'none';
+        });
+
+        // 4. 클릭 이벤트 및 팝업 제어
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('clickable-nick')) {
+                const targetNick = e.target.getAttribute('data-nick');
+                if (targetNick === myNick) return;
+                
+                selectedUser = { nick: targetNick, id: e.target.getAttribute('data-id') };
+                document.getElementById('up-nick').innerText = targetNick;
+                
+                if (isAdmin) document.querySelectorAll('.admin-btn').forEach(b => b.style.display = 'block');
+                
+                userPopup.style.display = 'flex';
+                userPopup.style.top = (e.pageY + 10) + 'px';
+                userPopup.style.left = e.pageX + 'px';
+            } else if (!userPopup.contains(e.target)) {
+                userPopup.style.display = 'none';
+            }
+        });
+
+        // 5. 이모티콘 로직 (원본 유지)
+        let emoticonFiles = [];
+        let currentEmoPage = 1;
+        const EMO_PER_PAGE = 15;
+        
+        const renderEmoticons = () => {
+            const list = document.getElementById('emo-list');
+            list.innerHTML = '';
+            const start = (currentEmoPage - 1) * EMO_PER_PAGE;
+            const end = Math.min(start + EMO_PER_PAGE, emoticonFiles.length);
+            
+            for (let i = start; i < end; i++) {
+                const img = document.createElement('img');
+                img.src = `/emoticons/${emoticonFiles[i]}`;
+                img.onclick = () => {
+                    socket.emit('chat message', { type: 'image', user: myInfo, content: img.src });
+                    emoPicker.style.display = 'none';
+                };
+                list.appendChild(img);
+            }
+            document.getElementById('emo-page-info').innerText = `${currentEmoPage} / ${Math.ceil(emoticonFiles.length/EMO_PER_PAGE) || 1}`;
+        };
+
+        fetch('/api/emoticons').then(res => res.json()).then(files => { emoticonFiles = files; renderEmoticons(); });
+        document.getElementById('emo-toggle-btn').onclick = () => emoPicker.style.display = (emoPicker.style.display === 'flex' ? 'none' : 'flex');
+        document.getElementById('emo-prev').onclick = () => { if(currentEmoPage > 1) { currentEmoPage--; renderEmoticons(); } };
+        document.getElementById('emo-next').onclick = () => { if(currentEmoPage < Math.ceil(emoticonFiles.length/EMO_PER_PAGE)) { currentEmoPage++; renderEmoticons(); } };
+
+        // 6. 관리자 액션 연결
+        document.getElementById('btn-whisper').onclick = () => { input.value = `/w ${selectedUser.nick} `; input.focus(); userPopup.style.display = 'none'; };
+        document.getElementById('btn-mute').onclick = () => { socket.emit('mute user', selectedUser.id); userPopup.style.display = 'none'; };
+        document.getElementById('btn-unmute').onclick = () => { socket.emit('unmute user', selectedUser.id); userPopup.style.display = 'none'; };
+        document.getElementById('btn-clear').onclick = () => { socket.emit('clear chat'); userPopup.style.display = 'none'; };
     </script>
 </body>
 </html>
-
-

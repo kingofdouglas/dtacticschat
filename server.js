@@ -96,6 +96,16 @@ app.get('/api/admin/bans', adminAuth, async (req, res) => {
 app.post('/api/admin/ban', adminAuth, async (req, res) => {
     const { ip, id, nick, reason } = req.body;
     await Ban.create({ ip, id, nick, reason });
+    
+    // 현재 접속자 중 해당 IP를 쓰는 소켓들 다 찾아내서 쫓아내기
+    const sockets = await io.fetchSockets();
+    for (const s of sockets) {
+        let sIp = s.handshake.headers['x-forwarded-for'] || s.handshake.address;
+        if (sIp.includes(ip)) {
+            s.emit('system message', '관리자에 의해 차단되었습니다.');
+            s.disconnect();
+        }
+    }
     res.json({ success: true });
 });
 
@@ -141,14 +151,15 @@ app.get('/api/emoticons', (req, res) => {
 // ------------------------------------------------------------------
 
 io.on('connection', async (socket) => {
-    const clientIp = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
+    let clientIp = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
+    if (clientIp.includes(',')) clientIp = clientIp.split(',')[0].trim();
 
-    // A. IP 차단 체크
     try {
         const isBanned = await Ban.findOne({ ip: clientIp });
         if (isBanned) {
             socket.emit('system message', `차단된 IP입니다. (사유: ${isBanned.reason})`);
-            return socket.disconnect();
+            socket.disconnect(true); // true를 넣어 강제 종료
+            return; // 이후 로직 실행 방지
         }
     } catch (err) { console.error("Ban check error:", err); }
 
@@ -283,7 +294,8 @@ socket.on('mute user', (target) => {
         const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
         
         if (targetSocket) {
-            const targetIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
+            let rawIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
+            const targetIp = rawIp.split(',')[0].trim(); // 쉼표가 있어도 첫 번째 것만 가져옴
             // 요청한 관리자에게만 시스템 메시지로 IP 전달
             socket.emit('system message', `[보안] ${targetSocket.user.nick}님의 IP: ${targetIp}`);
         } else {

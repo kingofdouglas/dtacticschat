@@ -5,6 +5,8 @@ const io = require('socket.io')(http, { cors: { origin: "*" } });
 const fs = require('fs');
 const path = require('path');
 
+let chatHistory = [];
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ★ 여기에 실제 웹게임의 관리자 ID(아이디 검사용)를 적어주세요!
@@ -92,6 +94,45 @@ io.on('connection', (socket) => {
     });
 });
 
+// 접속시 채팅기록
+io.on('connection', (socket) => {
+    // 유저가 접속(join)했을 때
+    socket.on('join', (user) => {
+        socket.user = user;
+        
+        // [추가] 새로 들어온 유저에게만 이전 기록 10개를 전송
+        if (chatHistory.length > 0) {
+            socket.emit('chat history', chatHistory);
+        }
+
+        io.emit('system message', `${user.nick}님이 입장하셨습니다.`);
+        updateUserList();
+    });
+
+    socket.on('chat message', (data) => {
+        // 메시지 데이터 저장
+        const msgData = {
+            type: data.type,
+            user: data.user,
+            content: data.content,
+            timestamp: Date.now()
+        };
+
+        // 기록 배열에 추가하고 10개만 남기기
+        chatHistory.push(msgData);
+        if (chatHistory.length > 10) {
+            chatHistory.shift(); // 제일 오래된 첫 번째 요소 삭제
+        }
+
+        io.emit('chat message', data);
+    });
+
+    // 관리자가 채팅 청소할 때 기록도 삭제
+    socket.on('clear chat', () => {
+        chatHistory = [];
+        io.emit('clear chat');
+    });
+});
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
     console.log(`서버가 ${PORT} 포트에서 실행 중입니다.`);

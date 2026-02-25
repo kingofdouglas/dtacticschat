@@ -116,37 +116,31 @@
     const urlParams = new URLSearchParams(window.location.search);
     const pw = urlParams.get('pw');
     
+// 1. 페이지가 로드되자마자 실행되는 자동 입력 로직 (loadData 밖으로 분리)
+    window.addEventListener('DOMContentLoaded', () => {
+        const params = new URLSearchParams(window.location.search);
+        const banIp = params.get('banIp');
+        const banNick = params.get('banNick');
+        const banId = params.get('banId');
 
+        if (banIp) document.getElementById('manualIp').value = banIp;
+        if (banNick) {
+            // ID가 있으면 닉네임(ID) 형태로 표시
+            document.getElementById('manualNick').value = banId ? `${banNick}(${banId})` : banNick;
+        }
+
+        if (banIp || banNick) {
+            document.getElementById('manualReason').focus();
+        }
+
+        loadData(); // 여기서 데이터를 불러옵니다.
+    });
    
     // 데이터를 서버에서 불러오는 핵심 함수
     async function loadData() {
         if (!pw) { alert("비밀번호가 필요합니다."); window.close(); return; }
 
-        // 페이지 로드 시 실행
-        window.addEventListener('DOMContentLoaded', () => {
-            const params = new URLSearchParams(window.location.search);
-            const banIp = params.get('banIp');
-            const banNick = params.get('banNick');
-            const banId = params.get('banId'); // ID도 받아오기 위해 추가
-        
-            if (banIp) {
-                document.getElementById('manualIp').value = banIp;
-            }
-            if (banNick) {
-                // 닉네임 뒤에 ID를 붙여서 표시하면 관리자가 더 구분하기 쉽습니다.
-                document.getElementById('manualNick').value = banId ? `${banNick}(${banId})` : banNick;
-            }
-            
-            if (banIp || banNick) {
-                // 값이 있으면 바로 사유 입력창으로 포커스
-                setTimeout(() => {
-                    document.getElementById('manualReason').focus();
-                }, 100);
-            }
-        
-            // 데이터 불러오기 실행
-            loadData();
-        });
+    
         
         try {
             // 1. 신고 목록

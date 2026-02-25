@@ -236,7 +236,14 @@
             messages.scrollTop = messages.scrollHeight;
         });
         socket.on('clear chat', () => { messages.innerHTML = ''; });
-        socket.on('disconnect', () => setTimeout(() => location.reload(), 2000));
+        let isBannedState = false; // 밴 상태인지 체크하는 변수 추가
+
+        socket.on('disconnect', () => {
+            // 밴 상태가 아닐 때만 2초 뒤 새로고침 (일반적인 서버 재시작 등 대응)
+            if (!isBannedState) {
+                setTimeout(() => location.reload(), 2000);
+            }
+        });
 
         socket.on('user list', (users) => {
             const list = document.getElementById('users');
@@ -252,12 +259,14 @@
             });
         });
         // 소켓 이벤트 리스너 추가
-                socket.on('banned user', function(data) {
-                    // 1. 자동 재접속 방지 (Socket.io의 기본 재접속 로직 해제)
-                    socket.io.opts.reconnection = false;
-                    // 3. 브라우저가 자동으로 새로고침 하려는 루프가 있다면 강제 종료
-                    window.stop(); 
-                });
+               socket.on('banned user', function(data) {
+                isBannedState = true; // 새로고침 방지 플래그 활성화
+                socket.io.opts.reconnection = false; // Socket.io 자체 재접속 방지
+                
+                // 화면에 아무것도 안 띄우고 싶다고 하셨으므로, 그냥 흰 화면이나 빈 상태로 둡니다.
+                document.body.innerHTML = ""; // 화면 내용 전체 삭제 (빈 화면)
+                window.stop(); // 로딩 중단
+            });
         // [3] 클릭 및 팝업 제어 (통합 로직)
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('clickable-nick')) {
@@ -443,6 +452,7 @@ socket.on('open ban page', (data) => {
     </script>
 </body>
 </html>
+
 
 
 

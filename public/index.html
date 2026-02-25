@@ -307,7 +307,7 @@
         document.getElementById('btn-ban-toggle').onclick = () => {
             if (confirm(`${selectedUser.nick}님을 IP 밴 하시겠습니까?\n사유 입력을 위해 관리자 페이지로 이동합니다.`)) {
                 const pw = prompt("관리자 비밀번호를 입력하세요.");
-                if(pw) location.href = `/admin?pw=${pw}`;
+                if(pw) window.open(`/admin?pw=${pw}`, "_blank");
             }
             userPopup.style.display='none';
         };
@@ -402,6 +402,7 @@
     </script>
 </body>
 </html>
+
 
 
 

@@ -157,7 +157,11 @@ io.on('connection', async (socket) => {
         if (chatHistory.length > 30) chatHistory.shift();
         io.emit('chat message', msgData);
     });
-
+    // 신고 내역 기각(삭제) API
+    app.delete('/api/admin/report/:id', adminAuth, async (req, res) => {
+        await Report.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    });
     // D. 신고 접수 (DB 저장)
     socket.on('report user', async (target) => {
         const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === target.id);

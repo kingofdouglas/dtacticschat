@@ -8,7 +8,7 @@ const path = require('path');
 let chatHistory = [];
 const connectedUsers = {};
 const mutedIds = new Set();
-const ADMIN_IDS = ['dirtyass', 'dirtyass2', 'master']; 
+const ADMIN_IDS = ['dirtyass', 'dirtyass2']; 
 
 app.use(express.static(path.join(__dirname, 'public')));
 

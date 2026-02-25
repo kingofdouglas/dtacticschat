@@ -130,7 +130,16 @@
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         }
-
+        socket.on('disconnect', (reason) => {
+    console.log("서버 연결 끊김:", reason);
+    
+    // 서버가 다시 켜질 때까지 기다렸다가 새로고침하기 위해 약간의 지연(예: 2초)을 줍니다.
+    // 'io server disconnect'는 서버에서 강제로 끊은 경우이고, 
+    // 그 외는 서버 다운이나 네트워크 문제입니다.
+    setTimeout(() => {
+        location.reload(); 
+    }, 2000); 
+});
         // 2. 소켓 리스너 (한 번씩만 선언)
         socket.on('chat history', (history) => {
             messages.innerHTML = '';
@@ -240,3 +249,4 @@
     </script>
 </body>
 </html>
+

@@ -8,18 +8,24 @@
 
         #wrapper { display: flex; width: 100%; height: 100%; background: #2e2e2e; position: relative; }
         #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #1f1f1f; }
-        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 13px; line-height: 1.15; color: #ddd; }
-        #messages li { padding: 0 2px; margin-bottom: 0; display: flex; align-items: flex-start; word-break: break-all; }
         
-        .user-icon { width: 14px; height: 14px; margin-right: 4px; margin-top: 0; border-radius: 2px; }
+        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 13px; line-height: 1.25; color: #ddd; }
+        
+        /* ==== [수정] 메시지(li)에 마우스 오버 시 살짝 밝아지게 효과 추가 ==== */
+        #messages li { padding: 2px 4px; margin-bottom: 2px; word-break: break-all; border-radius: 4px; transition: background-color 0.1s; position: relative; } 
+        #messages li:hover { background-color: #3d3d3d; /* 살짝 밝은 회색 */ }
+        
+        .user-icon { width: 14px; height: 14px; margin-right: 3px; vertical-align: -2px; border-radius: 2px; }
+        
         .my-nickname { color: #5dade2; font-weight: bold; }   
         .other-nickname { color: #dfdfdf; font-weight: bold; } 
         .msg-text { color: #dfdfdf; }
         .chat-emoticon { width: 40px; height: 40px; vertical-align: middle; }
 
-        /* ==== [신규] 닉네임 클릭 효과 및 시스템/귓속말 컬러 ==== */
+        /* ==== [수정] 닉네임 클릭 효과: 밑줄(underline) 제거 ==== */
         .clickable-nick { cursor: pointer; }
-        .clickable-nick:hover { text-decoration: underline; color: #fff; }
+        .clickable-nick:hover { color: #fff; } /* text-decoration: underline 삭제됨 */
+        
         .system-msg { color: #f39c12; font-weight: bold; font-size: 12px; }
         .whisper-msg { color: #ff9ff3; font-weight: bold; }
 
@@ -39,17 +45,31 @@
         #emo-pagination button { background: #444; border: 1px solid #222; color: #ccc; cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 11px; }
         #emo-pagination button:disabled { color: #666; border-color: #333; cursor: not-allowed; background-color: transparent; }
 
-        /* ==== [신규] 유저 클릭 시 뜨는 팝업 메뉴 ==== */
         #user-popup { position: absolute; background: #333; border: 1px solid #111; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); padding: 5px; display: none; flex-direction: column; z-index: 101; width: 120px; }
         .up-header { font-size: 12px; color: #5dade2; font-weight: bold; text-align: center; margin-bottom: 4px; border-bottom: 1px solid #444; padding-bottom: 2px; }
         #user-popup button { background: #444; color: #eee; border: 1px solid #222; margin: 2px 0; padding: 4px; font-size: 11px; cursor: pointer; }
         #user-popup button:hover { background: #555; }
-        .admin-btn { display: none; } /* 기본적으론 관리자 버튼 숨김 */
+        .admin-btn { display: none; } 
 
         #user-list-container { width: 130px; display: flex; flex-direction: column; background: #2e2e2e; }
         #user-list-header { display: none; } 
         #users { flex: 1; overflow-y: auto; margin: 0; padding: 5px; list-style-type: none; font-size: 13px; color: #ddd; }
         #users li { padding: 3px 2px; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* ==== [신규] 시간 표시 툴팁 디자인 ==== */
+        #time-tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            pointer-events: none; /* 마우스 이벤트를 무시하여 깜빡임 방지 */
+            z-index: 9999;
+            display: none;
+            white-space: nowrap;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+        }
 
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -61,7 +81,6 @@
     <div id="wrapper">
         <div id="chat-container">
             <ul id="messages"></ul>
-            
             <div id="emo-picker">
                 <div id="emo-list"></div>
                 <div id="emo-pagination">
@@ -70,7 +89,6 @@
                     <button id="emo-next">▶</button>
                 </div>
             </div>
-
             <div id="user-popup">
                 <div class="up-header" id="up-nick"></div>
                 <button id="btn-whisper">귓속말 보내기</button>
@@ -78,7 +96,6 @@
                 <button id="btn-unmute" class="admin-btn" style="color:#51cf66;">금지 해제</button>
                 <button id="btn-clear" class="admin-btn" style="color:#fcc419;">채팅창 청소</button>
             </div>
-
             <form id="form" onsubmit="return false;">
                 <button id="emo-toggle-btn" type="button">+</button>
                 <input id="input" placeholder="채팅 입력." autocomplete="off" />
@@ -90,18 +107,28 @@
             <ul id="users"></ul>
         </div>
     </div>
+    
+    <div id="time-tooltip"></div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         const socket = io();
-        
         const urlParams = new URLSearchParams(window.location.search);
+        
         const myNick = urlParams.get('nick') || 'Guest_' + Math.floor(Math.random() * 1000);
         const myId = urlParams.get('id') || 'guest';
-        const myIcon = urlParams.get('icon') || '';
+        
+        let myIcon = urlParams.get('icon') || urlParams.get('con') || '';
+
+        if (myIcon.startsWith('./')) {
+            // ★ 아래 주소를 실제 운영 중인 웹게임 도메인으로 꼭 바꿔주세요!
+            const GAME_DOMAIN = 'http://여기에웹게임주소입력.com'; 
+            myIcon = GAME_DOMAIN + myIcon.substring(1); 
+        }
+
         const myInfo = { nick: myNick, id: myId, icon: myIcon };
 
-        // ★ 여기도 서버와 동일한 관리자 ID를 입력하세요! (클라이언트 화면 제어용)
+        // ★ 실제 운영자 아이디로 꼭 바꿔주세요!
         const ADMIN_ID = 'master'; 
         const isAdmin = (myInfo.id === ADMIN_ID);
 
@@ -114,64 +141,47 @@
         const emoToggleBtn = document.getElementById('emo-toggle-btn');
         const emoPicker = document.getElementById('emo-picker');
         const userPopup = document.getElementById('user-popup');
+        const timeTooltip = document.getElementById('time-tooltip');
 
         let selectedUser = { nick: '', id: '' };
 
-        // ==== [신규] 유저 팝업 및 귓속말/관리자 기능 이벤트 처리 ====
-        
-        // 1. 화면의 빈 곳을 클릭하면 팝업 닫기
         document.addEventListener('click', (e) => {
             if(!e.target.classList.contains('clickable-nick') && !userPopup.contains(e.target)) {
                 userPopup.style.display = 'none';
             }
         });
 
-        // 2. 닉네임 클릭 시 팝업 띄우기 (이벤트 위임)
         document.getElementById('wrapper').addEventListener('click', (e) => {
             if (e.target.classList.contains('clickable-nick')) {
                 const targetNick = e.target.getAttribute('data-nick');
                 const targetId = e.target.getAttribute('data-id');
-                
-                if (targetNick === myInfo.nick) return; // 자기 자신을 클릭하면 무시
+                if (targetNick === myInfo.nick) return; 
 
                 selectedUser = { nick: targetNick, id: targetId };
                 document.getElementById('up-nick').innerText = targetNick;
 
-                // 관리자라면 특수 버튼들 보이기
                 if (isAdmin) {
                     document.querySelectorAll('.admin-btn').forEach(btn => btn.style.display = 'block');
                 }
 
-                // 마우스 클릭 위치 근처에 팝업 띄우기
                 const rect = e.target.getBoundingClientRect();
                 const wrapperRect = document.getElementById('wrapper').getBoundingClientRect();
                 userPopup.style.top = (rect.bottom - wrapperRect.top + 5) + 'px';
                 userPopup.style.left = (rect.left - wrapperRect.left) + 'px';
                 userPopup.style.display = 'flex';
-                emoPicker.style.display = 'none'; // 이모티콘 창 열려있으면 닫기
+                emoPicker.style.display = 'none'; 
             }
         });
 
-        // 3. 팝업창 버튼 기능 연결
         document.getElementById('btn-whisper').addEventListener('click', () => {
-            input.value = `/w ${selectedUser.nick} `; // 채팅창에 /w 닉네임 자동 입력
+            input.value = `/w ${selectedUser.nick} `; 
             input.focus();
             userPopup.style.display = 'none';
         });
-        document.getElementById('btn-mute').addEventListener('click', () => {
-            socket.emit('mute user', selectedUser.id);
-            userPopup.style.display = 'none';
-        });
-        document.getElementById('btn-unmute').addEventListener('click', () => {
-            socket.emit('unmute user', selectedUser.id);
-            userPopup.style.display = 'none';
-        });
-        document.getElementById('btn-clear').addEventListener('click', () => {
-            socket.emit('clear chat');
-            userPopup.style.display = 'none';
-        });
+        document.getElementById('btn-mute').addEventListener('click', () => { socket.emit('mute user', selectedUser.id); userPopup.style.display = 'none'; });
+        document.getElementById('btn-unmute').addEventListener('click', () => { socket.emit('unmute user', selectedUser.id); userPopup.style.display = 'none'; });
+        document.getElementById('btn-clear').addEventListener('click', () => { socket.emit('clear chat'); userPopup.style.display = 'none'; });
 
-        // ==== 이모티콘 관련 기능 (기존 동일) ====
         let emoticonFiles = [];
         let currentEmoPage = 1;
         const EMO_PER_PAGE = 15; 
@@ -211,13 +221,11 @@
             socket.emit('chat message', { type: type, user: myInfo, content: content });
         }
 
-        // ==== [신규] 메시지 전송 시 귓속말(/w) 명령어 분석 ====
         form.addEventListener('submit', function(e) {
             e.preventDefault();
             const text = input.value.trim();
             if(text !== "") {
                 if (text.startsWith('/w ')) {
-                    // '/w 닉네임 할말' 구조를 잘라서 서버로 전송
                     const parts = text.split(' ');
                     if (parts.length > 2) {
                         const targetNick = parts[1];
@@ -232,8 +240,53 @@
             }
         });
 
-        // ==== 서버로부터 메시지 수신 처리 ====
-        
+        // ==== [신규] 시간 표시를 위한 계산 함수 ====
+        function formatTimeDiff(timestamp) {
+            const diffMs = Date.now() - timestamp;
+            const diffMins = Math.floor(diffMs / 60000);
+            if (diffMins < 1) return '방금 전';
+            if (diffMins < 60) return `${diffMins}분 전`;
+            const diffHours = Math.floor(diffMins / 60);
+            if (diffHours < 24) return `${diffHours}시간 전`;
+            const diffDays = Math.floor(diffHours / 24);
+            return `${diffDays}일 전`;
+        }
+
+        // ==== [신규] 채팅창 마우스 오버 툴팁 기능 ====
+        let tooltipTimeout;
+
+        // 마우스가 채팅 메시지 위에 올라갔을 때
+        messages.addEventListener('mouseover', (e) => {
+            const li = e.target.closest('li');
+            if (li && li.hasAttribute('data-time')) {
+                const sendId = li.getAttribute('data-sendid') || '알 수 없음';
+                const timeStr = formatTimeDiff(parseInt(li.getAttribute('data-time')));
+                
+                // 0.3초(300ms) 뒤에 툴팁 표시
+                tooltipTimeout = setTimeout(() => {
+                    timeTooltip.innerText = `${sendId} ${timeStr}`;
+                    timeTooltip.style.display = 'block';
+                }, 300);
+            }
+        });
+
+        // 마우스가 움직일 때 툴팁이 마우스를 따라다니게
+        messages.addEventListener('mousemove', (e) => {
+            if (timeTooltip.style.display === 'block') {
+                timeTooltip.style.left = (e.pageX + 10) + 'px';
+                timeTooltip.style.top = (e.pageY + 10) + 'px';
+            }
+        });
+
+        // 마우스가 메시지 밖으로 나가면 취소 및 숨김
+        messages.addEventListener('mouseout', (e) => {
+            const li = e.target.closest('li');
+            if (li) {
+                clearTimeout(tooltipTimeout);
+                timeTooltip.style.display = 'none';
+            }
+        });
+
         socket.on('system message', (msg) => {
             const item = document.createElement('li');
             item.innerHTML = `<span class="system-msg">[안내] ${msg}</span>`;
@@ -242,20 +295,23 @@
         });
 
         socket.on('clear chat', () => {
-            messages.innerHTML = ''; // 채팅창 내부의 HTML을 싹 비움
+            messages.innerHTML = ''; 
         });
 
         socket.on('whisper', (data) => {
             const item = document.createElement('li');
             const isMe = (data.user.nick === myInfo.nick);
-            
-            // 내가 보낸거면 [귓속말 -> 닉네임], 받은거면 [귓속말 <- 닉네임]
             const prefix = isMe ? `[귓속말 -> ${data.targetNick}]` : `[귓속말 <- ${data.user.nick}]`;
             const nickClass = isMe ? 'my-nickname' : 'other-nickname';
 
+            // [추가] data-time, data-sendid 속성 부여
+            item.setAttribute('data-time', Date.now());
+            item.setAttribute('data-sendid', data.user.id);
+
             item.innerHTML = `
-                <div><span class="whisper-msg">${prefix}</span> <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span></div>
-                &nbsp;<div><span class="msg-text">${data.content}</span></div>
+                <span class="whisper-msg">${prefix}</span> 
+                <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span>
+                &nbsp;<span class="msg-text">${data.content}</span>
             `;
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
@@ -264,18 +320,17 @@
         socket.on('chat message', function(data) {
             const item = document.createElement('li');
             const userIconHtml = data.user.icon ? `<img src="${data.user.icon}" class="user-icon">` : '';
-            
             let messageContent = data.type === 'image' ? `<img src="${data.content}" class="chat-emoticon">` : `<span class="msg-text">${data.content}</span>`;
             const isMe = (data.user.nick === myInfo.nick);
             const nickClass = isMe ? 'my-nickname' : 'other-nickname';
 
-            // [신규] 닉네임에 clickable-nick 클래스와 데이터(data-nick, id) 부여
+            // [추가] 툴팁 계산을 위한 시간(Timestamp)과 아이디 속성 부여
+            item.setAttribute('data-time', Date.now());
+            item.setAttribute('data-sendid', data.user.id);
+
             item.innerHTML = `
-                <div>
-                    ${userIconHtml}
-                    <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span>
-                </div>
-                &nbsp;<div>${messageContent}</div>
+                ${userIconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span>
+                &nbsp;${messageContent}
             `;
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
@@ -289,7 +344,6 @@
                 const isMe = (user.nick === myInfo.nick);
                 const listNickColor = isMe ? '#5dade2' : '#dfdfdf';
 
-                // [신규] 접속자 목록 닉네임에도 클릭 기능 부여
                 li.innerHTML = `${iconHtml}<span class="clickable-nick" data-nick="${user.nick}" data-id="${user.id}" style="color:${listNickColor};">${user.nick}</span>`;
                 usersList.appendChild(li);
             });

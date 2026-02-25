@@ -114,6 +114,17 @@
         const timeTooltip = document.getElementById('time-tooltip');
         let selectedUser = { nick: '', id: '' };
 
+        function parseChatText(text) {
+        // 1. 악성 스크립트 실행 방지 (HTML 태그 무력화)
+        let safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        
+        // 2. http:// 또는 https:// 로 시작하는 문자열을 찾아 새 탭 링크(<a>)로 변환
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        return safeText.replace(urlRegex, function(url) {
+            return `<a href="${url}" target="_blank" style="color: #5dade2; text-decoration: underline;">${url}</a>`;
+        });
+        }
+            
         function displayMessage(data, isWhisper = false, whisperPrefix = "") {
             const item = document.createElement('li');
             if (data.user.nick === myNick) item.classList.add('my-message-bg');
@@ -124,8 +135,12 @@
 
             const iconHtml = data.user.icon ? `<img src="${fixPath(data.user.icon)}" class="user-icon" onerror="this.style.display='none'">` : '';
             const nickClass = (data.user.nick === myNick) ? 'my-nickname' : 'other-nickname';
-            const contentHtml = (data.type === 'image') ? `<img src="${data.content}" class="chat-emoticon">` : `<span class="msg-text">${data.content}</span>`;
-
+            let contentHtml = '';
+            if (data.type === 'image') {
+                contentHtml = `<img src="${data.content}" class="chat-emoticon">`;
+            } else {
+                contentHtml = `<span class="msg-text">${parseChatText(data.content)}</span>`;
+            }
             item.innerHTML = isWhisper 
                 ? `<span class="whisper-msg">${whisperPrefix}</span> <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> ${contentHtml}`
                 : `${iconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> ${contentHtml}`;
@@ -325,5 +340,6 @@
     </script>
 </body>
 </html>
+
 
 

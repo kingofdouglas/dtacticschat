@@ -226,16 +226,32 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // G. 관리자 전용 제어 (Mute 수정)
-    socket.on('mute user', (target) => { // target을 객체로 받음 {id, nick}
-        if (ADMIN_IDS.includes(socket.user?.id)) {
-            mutedUsers[target.id] = {
-                nick: target.nick,
-                date: new Date()
-            };
-            socket.emit('system message', `[관리] ${target.nick}님을 뮤트했습니다.`);
+    // G. 관리자 전용 제어 (Mute 수정본)
+socket.on('mute user', (target) => { 
+    if (ADMIN_IDS.includes(socket.user?.id)) {
+        let targetId, targetNick;
+
+        // target이 객체 {id, nick}인 경우
+        if (target && typeof target === 'object') {
+            targetId = target.id;
+            targetNick = target.nick;
+        } 
+        // target이 단순 ID 문자열인 경우 (구형 방식 대응)
+        else {
+            targetId = target;
+            const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
+            targetNick = targetSocket ? targetSocket.user.nick : targetId;
         }
-    });
+
+        if (!targetId) return;
+
+        mutedUsers[targetId] = {
+            nick: targetNick || 'Unknown',
+            date: new Date()
+        };
+        socket.emit('system message', `[관리] ${targetNick}님을 뮤트했습니다.`);
+    }
+});
 
     socket.on('unmute user', (targetId) => {
         if (ADMIN_IDS.includes(socket.user?.id)) {

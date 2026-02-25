@@ -31,6 +31,7 @@
         #user-popup { position: absolute; background: rgba(35,35,35,0.98); border: 1px solid #444; display: none; flex-direction: column; z-index: 101; min-width: 90px; }
         #user-popup button { background: transparent; color: #eee; border: none; padding: 7px 10px; font-size: 12px; cursor: pointer; text-align: left; }
         #user-popup button:hover { background: #4a90e2; }
+        .admin-btn { display: none; }
 
         #user-list-container { width: 110px; background: #2e2e2e; }
         #users { list-style: none; padding: 5px; margin: 0; font-size: 12px; color: #ddd; }
@@ -55,6 +56,7 @@
             <div id="user-popup">
                 <button id="btn-whisper">귓속말</button>
                 <button id="btn-call" style="color:#ffd32a;">호출하기</button>
+                
                 <button id="btn-mute" class="admin-btn" style="color:#ff6b6b;">차단</button>
                 <button id="btn-unmute" class="admin-btn" style="color:#51cf66;">해제</button>
                 <button id="btn-clear" class="admin-btn" style="color:#fcc419;">청소</button>
@@ -84,10 +86,13 @@
         myIcon = fixPath(myIcon);
 
         const myInfo = { nick: myNick, id: myId, icon: myIcon };
-        const ADMIN_IDS = ['dirtyass', 'dirtyass2']; 
-        const isAdmin = ADMIN_IDS.includes(myId);
 
-        // 클라이언트 단에서 차단한 유저와 호출 쿨타임을 기억하는 저장소
+        // ★ [보안] 깃허브 코드에서 아이디를 지웠습니다.
+        let isAdmin = false; 
+
+        // ★ [보안] 서버가 권한을 줄 때만 관리자 모드가 켜집니다.
+        socket.on('admin auth', () => { isAdmin = true; });
+
         const localMutedIds = new Set();
         const callCooldowns = {};
 
@@ -122,10 +127,9 @@
             displayMessage(d, true, prefix);
         });
 
-        // ★ [신규] 호출 수신 시 소리 재생 및 알림
         socket.on('call alert', (data) => {
             const audio = document.getElementById('call-sound');
-            audio.play().catch(e => console.log('소리 재생 차단됨:', e)); // 브라우저 정책 방어코드
+            audio.play().catch(e => console.log('소리 재생 차단됨:', e)); 
             
             const item = document.createElement('li');
             item.innerHTML = `<span style="color:#ffd32a; font-weight:bold;">[호출] 🔔 ${data.sender}님이 당신을 호출했습니다!</span>`;
@@ -143,22 +147,19 @@
         socket.on('clear chat', () => { messages.innerHTML = ''; });
         socket.on('disconnect', () => { setTimeout(() => location.reload(), 2000); });
 
-        // ★ [버그수정] 유저 목록 정렬 픽스
+        // 유저 목록: 서버가 준 isAdmin 값으로 왕관과 순서를 정합니다.
         socket.on('user list', (users) => {
             const list = document.getElementById('users');
             list.innerHTML = '';
             
-            // sort 버그 픽스 (동일값일 때 0을 반환해야 함)
             users.sort((a, b) => {
-                const isAAdmin = ADMIN_IDS.includes(a.id);
-                const isBAdmin = ADMIN_IDS.includes(b.id);
-                if (isAAdmin && !isBAdmin) return -1;
-                if (!isAAdmin && isBAdmin) return 1;
+                if (a.isAdmin && !b.isAdmin) return -1;
+                if (!a.isAdmin && b.isAdmin) return 1;
                 return 0; 
             }).forEach(u => {
                 const li = document.createElement('li');
                 const isMe = (u.nick === myNick);
-                const crown = ADMIN_IDS.includes(u.id) ? '👑' : '';
+                const crown = u.isAdmin ? '👑' : '';
                 const icon = u.icon ? `<img src="${fixPath(u.icon)}" class="user-icon">` : '';
                 li.innerHTML = `${crown}${icon}<span class="clickable-nick" data-nick="${u.nick}" data-id="${u.id}" style="color:${isMe ? '#5dade2' : '#dfdfdf'};">${u.nick}</span>`;
                 list.appendChild(li);
@@ -179,14 +180,18 @@
             emoPicker.style.display = 'none';
         };
 
-        // ★ [수정] 팝업 제어 및 차단/해제 토글 로직
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('clickable-nick')) {
                 const nick = e.target.getAttribute('data-nick');
                 if (nick === myNick) return;
                 selectedUser = { nick: nick, id: e.target.getAttribute('data-id') };
                 
-                // 차단 여부에 따른 버튼 노출 분기
+                // ★ 일단 일반 유저는 차단/해제/청소 버튼이 안 보이게 리셋
+                document.getElementById('btn-mute').style.display = 'none';
+                document.getElementById('btn-unmute').style.display = 'none';
+                document.getElementById('btn-clear').style.display = 'none';
+
+                // ★ 관리자일 경우에만 권한 버튼 노출
                 if (isAdmin) {
                     const isMuted = localMutedIds.has(selectedUser.id);
                     document.getElementById('btn-mute').style.display = isMuted ? 'none' : 'block';
@@ -223,15 +228,12 @@
         document.getElementById('emo-prev').onclick = () => { if(pg>1){ pg--; drawEmos(); } };
         document.getElementById('emo-next').onclick = () => { if(pg < emos.length/10){ pg++; drawEmos(); } };
 
-        // ★ 버튼 액션 이벤트
         document.getElementById('btn-whisper').onclick = () => { input.value = `/w ${selectedUser.nick} `; input.focus(); userPopup.style.display='none'; };
         
-        // 호출 버튼 로직 (10분 쿨타임)
         document.getElementById('btn-call').onclick = () => {
             const now = Date.now();
             const lastCallTime = callCooldowns[selectedUser.id];
             
-            // 10분 = 600,000 밀리초
             if (lastCallTime && (now - lastCallTime < 600000)) {
                 const item = document.createElement('li');
                 item.innerHTML = `<span class="system-msg">[안내] 같은 대상은 10분에 한 번만 호출 가능합니다.</span>`;
@@ -246,12 +248,12 @@
 
         document.getElementById('btn-mute').onclick = () => { 
             socket.emit('mute user', selectedUser.id); 
-            localMutedIds.add(selectedUser.id); // 차단 로컬 기억
+            localMutedIds.add(selectedUser.id);
             userPopup.style.display='none'; 
         };
         document.getElementById('btn-unmute').onclick = () => { 
             socket.emit('unmute user', selectedUser.id); 
-            localMutedIds.delete(selectedUser.id); // 차단 해제 기억
+            localMutedIds.delete(selectedUser.id); 
             userPopup.style.display='none'; 
         };
         document.getElementById('btn-clear').onclick = () => { socket.emit('clear chat'); userPopup.style.display='none'; };

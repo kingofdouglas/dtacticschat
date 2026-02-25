@@ -63,4 +63,36 @@ io.on('connection', (socket) => {
         }
     });
 
-    // ★ 관리자
+    // ★ 관리자 기능 (채팅 금지, 해제, 지우기)
+    socket.on('mute user', (targetId) => {
+        if (connectedUsers[socket.id]?.id === ADMIN_ID) {
+            mutedIds.add(targetId);
+            socket.emit('system message', `해당 유저의 채팅을 금지했습니다.`);
+        }
+    });
+
+    socket.on('unmute user', (targetId) => {
+        if (connectedUsers[socket.id]?.id === ADMIN_ID) {
+            mutedIds.delete(targetId);
+            socket.emit('system message', `해당 유저의 채팅 금지를 해제했습니다.`);
+        }
+    });
+
+    socket.on('clear chat', () => {
+        if (connectedUsers[socket.id]?.id === ADMIN_ID) {
+            io.emit('clear chat'); // 접속한 모든 사람의 채팅창을 지움
+        }
+    });
+
+    socket.on('disconnect', () => {
+        if (connectedUsers[socket.id]) {
+            delete connectedUsers[socket.id];
+            io.emit('user list', Object.values(connectedUsers));
+        }
+    });
+});
+
+const PORT = process.env.PORT || 3000;
+http.listen(PORT, () => {
+    console.log(`서버가 ${PORT} 포트에서 실행 중입니다.`);
+});

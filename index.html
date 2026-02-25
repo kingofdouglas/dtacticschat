@@ -9,13 +9,10 @@
         #wrapper { display: flex; width: 100%; height: 100%; background: #2e2e2e; position: relative; }
         #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #1f1f1f; }
         
-        /* ==== [수정] 폰트 사이즈 13px -> 12px ==== */
         #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 12px; line-height: 1.25; color: #ddd; }
-        
         #messages li { padding: 2px 4px; margin-bottom: 2px; word-break: break-all; border-radius: 4px; transition: background-color 0.1s; position: relative; } 
         #messages li:hover { background-color: #3d3d3d; }
         
-        /* ==== [수정] 아이콘 크기 11x11 ==== */
         .user-icon { width: 11px; height: 11px; margin-right: 3px; vertical-align: text-bottom; border-radius: 2px; }
         .my-nickname, .other-nickname, .msg-text, .clickable-nick, .whisper-msg { vertical-align: baseline; }
         
@@ -34,7 +31,6 @@
         #emo-toggle-btn { width: 24px; height: 100%; background: transparent; border: none; color: #aaa; cursor: pointer; font-weight: bold; font-size: 16px; padding: 0; display: flex; align-items: center; justify-content: center; }
         #emo-toggle-btn:hover { color: #fff; }
         
-        /* ==== [수정] 입력창 폰트 사이즈 13px -> 12px ==== */
         #input { flex: 1; padding: 0 4px; background: transparent; border: none; color: #eee; height: 100%; font-size: 12px; outline: none; }
         #input::placeholder { color: #888; font-weight: bold; } 
         #form button[type="submit"] { padding: 0 8px; height: 100%; background: transparent; color: #999; border: none; cursor: pointer; font-size: 12px; font-weight: bold; }
@@ -57,9 +53,13 @@
         #user-list-container { width: 130px; display: flex; flex-direction: column; background: #2e2e2e; }
         #user-list-header { display: none; } 
         
-        /* ==== [수정] 유저 목록 폰트 사이즈 13px -> 12px ==== */
+        /* ==== [수정] 유저 목록 왼쪽 정렬을 위해 justify-content 속성 확인/추가 ==== */
         #users { flex: 1; overflow-y: auto; margin: 0; padding: 5px; list-style-type: none; font-size: 12px; color: #ddd; }
-        #users li { padding: 3px 2px; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* justify-content: flex-start; 로 확실하게 왼쪽 정렬 */
+        #users li { padding: 3px 2px; display: flex; align-items: center; justify-content: flex-start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* ==== [신규] 관리자 왕관 아이콘 스타일 ==== */
+        .admin-crown { font-size: 11px; margin-right: 3px; }
 
         #time-tooltip {
             position: absolute;
@@ -132,9 +132,13 @@
 
         const myInfo = { nick: myNick, id: myId, icon: myIcon };
 
-        // ★ 실제 운영자 아이디로 꼭 바꿔주세요!
-        const ADMIN_ID = 'master'; 
-        const isAdmin = (myInfo.id === ADMIN_ID);
+        // ==== [수정] 여러 명의 관리자를 지원하는 배열(Array) 방식 ====
+        // 관리자 아이디를 추가하려면, 따옴표 안에 적고 쉼표(,)로 구분해서 계속 나열하시면 됩니다.
+        // 예: ['master', 'admin1', 'gm_hero']
+        const ADMIN_IDS = ['master', 'admin2']; 
+        
+        // 내 아이디가 배열 안에 포함되어 있는지 확인 (true/false)
+        const isAdmin = ADMIN_IDS.includes(myInfo.id);
 
         socket.emit('join', myInfo);
 
@@ -259,7 +263,6 @@
         let mouseX = 0;
         let mouseY = 0;
 
-        // ==== [신규] 툴팁 스마트 포지셔닝 함수 ====
         function updateTooltipPosition() {
             const ttWidth = timeTooltip.offsetWidth;
             const ttHeight = timeTooltip.offsetHeight;
@@ -267,15 +270,13 @@
             const winHeight = window.innerHeight;
 
             let left = mouseX + 12;
-            let top = mouseY + 15; // 기본적으로 마우스 아래에 위치
+            let top = mouseY + 15; 
 
-            // 마우스 아래쪽 공간이 부족할 경우 위쪽으로 띄움
             if (top + ttHeight > winHeight) {
                 top = mouseY - ttHeight - 10;
-                if (top < 0) top = 5; // 위쪽 공간도 부족할 경우 대비
+                if (top < 0) top = 5; 
             }
             
-            // 오른쪽 화면 밖으로 넘어갈 경우 방지
             if (left + ttWidth > winWidth) {
                 left = winWidth - ttWidth - 10;
             }
@@ -295,15 +296,13 @@
         messages.addEventListener('mouseover', (e) => {
             const li = e.target.closest('li');
             if (li && li.hasAttribute('data-time')) {
-                // 아이디 대신 닉네임을 가져오도록 수정
                 const sendNick = li.getAttribute('data-nick') || '알 수 없음';
                 const timeStr = formatTimeDiff(parseInt(li.getAttribute('data-time')));
                 
-                // 지연 시간을 0.7초(700ms)로 수정
                 tooltipTimeout = setTimeout(() => {
                     timeTooltip.innerText = `${sendNick} ${timeStr}`;
                     timeTooltip.style.display = 'block';
-                    updateTooltipPosition(); // 창이 뜰 때 즉시 위치 조정
+                    updateTooltipPosition(); 
                 }, 700);
             }
         });
@@ -334,7 +333,6 @@
             const nickClass = isMe ? 'my-nickname' : 'other-nickname';
 
             item.setAttribute('data-time', Date.now());
-            // 툴팁에서 닉네임을 사용하기 위해 data-nick 속성 추가
             item.setAttribute('data-nick', data.user.nick);
 
             item.innerHTML = `<span class="whisper-msg">${prefix}</span> <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> <span class="msg-text">${data.content}</span>`;
@@ -350,7 +348,6 @@
             const nickClass = isMe ? 'my-nickname' : 'other-nickname';
 
             item.setAttribute('data-time', Date.now());
-            // 툴팁에서 닉네임을 사용하기 위해 data-nick 속성 추가
             item.setAttribute('data-nick', data.user.nick);
 
             item.innerHTML = `${userIconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> <span class="msg-text">${data.content}</span>`;
@@ -358,15 +355,31 @@
             messages.scrollTop = messages.scrollHeight;
         });
 
+        // ==== [수정] 접속자 목록 정렬 로직 (관리자 최상단) ====
         socket.on('user list', function(users) {
             usersList.innerHTML = '';
+            
+            // 1. 유저 배열을 정렬: 관리자면 앞으로, 일반 유저면 뒤로
+            users.sort((a, b) => {
+                const isAAdmin = ADMIN_IDS.includes(a.id);
+                const isBAdmin = ADMIN_IDS.includes(b.id);
+                if (isAAdmin && !isBAdmin) return -1; // a가 관리자면 위로
+                if (!isAAdmin && isBAdmin) return 1;  // b가 관리자면 위로
+                return 0; // 둘 다 관리자거나 둘 다 일반 유저면 순서 유지
+            });
+
+            // 2. 정렬된 배열을 화면에 출력
             users.forEach(user => {
                 const li = document.createElement('li');
-                const iconHtml = user.icon ? `<img src="${user.icon}" class="user-icon">` : '';
                 const isMe = (user.nick === myInfo.nick);
                 const listNickColor = isMe ? '#5dade2' : '#dfdfdf';
+                const isThisUserAdmin = ADMIN_IDS.includes(user.id);
+                
+                // 해당 유저가 관리자면 왕관 아이콘 추가
+                const crownHtml = isThisUserAdmin ? `<span class="admin-crown">👑</span>` : '';
+                const iconHtml = user.icon ? `<img src="${user.icon}" class="user-icon">` : '';
 
-                li.innerHTML = `${iconHtml}<span class="clickable-nick" data-nick="${user.nick}" data-id="${user.id}" style="color:${listNickColor};">${user.nick}</span>`;
+                li.innerHTML = `${crownHtml}${iconHtml}<span class="clickable-nick" data-nick="${user.nick}" data-id="${user.id}" style="color:${listNickColor};">${user.nick}</span>`;
                 usersList.appendChild(li);
             });
         });

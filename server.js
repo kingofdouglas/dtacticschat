@@ -259,7 +259,23 @@ socket.on('mute user', (target) => {
             socket.emit('system message', `[관리] 해당 유저의 뮤트를 해제했습니다.`);
         }
     });
-
+        socket.on('get ip for ban', (targetId) => {
+    if (ADMIN_IDS.includes(socket.user?.id)) {
+        const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
+        
+        if (targetSocket) {
+            const targetIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
+            // 정보를 요청한 관리자에게만 타겟의 상세 정보를 응답함
+            socket.emit('open ban page', {
+                ip: targetIp,
+                id: targetId,
+                nick: targetSocket.user.nick
+            });
+        } else {
+            socket.emit('system message', "[오류] 해당 유저는 현재 오프라인입니다. 신고 내역에서 처리하세요.");
+        }
+    }
+});
     socket.on('get user ip', (targetId) => {
     // 요청자가 관리자인지 확인
     if (ADMIN_IDS.includes(socket.user?.id)) {

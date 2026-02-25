@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dtactics Admin Panel</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; background: #f4f4f4; margin: 20px; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { border-bottom: 2px solid #3498db; padding-bottom: 10px; color: #2c3e50; }
+        h2 { margin-top: 30px; font-size: 18px; color: #2980b9; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+        th { background: #f8f9fa; }
+        tr:hover { background: #f1f1f1; }
+
+        .btn-ban { background: #e74c3c; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; }
+        .btn-unban { background: #2ecc71; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; }
+        .btn-refresh { background: #3498db; color: white; border: none; padding: 8px 15px; cursor: pointer; border-radius: 4px; float: right; }
+        
+        .ban-form { background: #fdf2f2; padding: 15px; border-radius: 5px; margin-top: 10px; display: flex; gap: 10px; align-items: center; }
+        .ban-form input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <button class="btn-refresh" onclick="loadData()">새로고침 🔄</button>
+    <h1>관리자 패널</h1>
+
+    <h2>🚫 수동 IP 차단(BAN)</h2>
+    <div class="ban-form">
+        <input type="text" id="banIp" placeholder="차단할 IP">
+        <input type="text" id="banNick" placeholder="닉네임">
+        <input type="text" id="banReason" placeholder="차단 사유">
+        <button class="btn-ban" onclick="addBan()">즉시 차단</button>
+    </div>
+
+    <h2>📢 최근 신고 내역</h2>
+    <table id="reportTable">
+        <thead>
+            <tr>
+                <th>대상 유저(ID)</th>
+                <th>대상 IP</th>
+                <th>신고자</th>
+                <th>날짜</th>
+                <th>관리</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <h2>🔒 차단된 목록 (BAN LIST)</h2>
+    <table id="banTable">
+        <thead>
+            <tr>
+                <th>닉네임(ID)</th>
+                <th>차단된 IP</th>
+                <th>사유</th>
+                <th>날짜</th>
+                <th>관리</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const pw = urlParams.get('pw');
+
+    async function loadData() {
+        if (!pw) {
+            alert("권한이 없습니다.");
+            location.href = "/";
+            return;
+        }
+
+        try {
+            // 1. 신고 목록 가져오기
+            const repRes = await fetch(`/api/admin/reports?pw=${pw}`);
+            const reports = await repRes.json();
+            const repBody = document.querySelector('#reportTable tbody');
+            repBody.innerHTML = reports.map(r => `
+                <tr>
+                    <td>${r.targetNick}(${r.targetId})</td>
+                    <td>${r.targetIp}</td>
+                    <td>${r.reporter}</td>
+                    <td>${new Date(r.date).toLocaleString()}</td>
+                    <td><button class="btn-ban" onclick="quickBan('${r.targetIp}', '${r.targetId}', '${r.targetNick}')">즉시차단 / 밴</button></td>
+                </tr>
+            `).join('');
+
+            // 2. 밴 목록 가져오기
+            const banRes = await fetch(`/api/admin/bans?pw=${pw}`);
+            const bans = await banRes.json();
+            const banBody = document.querySelector('#banTable tbody');
+            banBody.innerHTML = bans.map(b => `
+                <tr>
+                    <td>${b.nick}(${b.id})</td>
+                    <td>${b.ip}</td>
+                    <td>${b.reason || '사유 없음'}</td>
+                    <td>${new Date(b.date).toLocaleString()}</td>
+                    <td><button class="btn-unban" onclick="unban('${b._id}')">해제 / 언밴</button></td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            console.error(e);
+            alert("데이터를 불러오는데 실패했습니다. 비밀번호를 확인하세요.");
+        }
+    }
+
+    // 신고 내역에서 바로 밴 처리
+    function quickBan(ip, id, nick) {
+        if(confirm(`${nick}님을 즉시 차단하시겠습니까?`)) {
+            executeBan({ ip, id, nick, reason: "신고 누적으로 인한 차단" });
+        }
+    }
+
+    // 수동 폼으로 밴 처리
+    function addBan() {
+        const ip = document.getElementById('banIp').value;
+        const nick = document.getElementById('banNick').value;
+        const reason = document.getElementById('banReason').value;
+        if(!ip) return alert("IP는 필수입니다.");
+        executeBan({ ip, id: 'manual', nick, reason });
+    }
+
+    // 밴 실행 API 호출
+    async function executeBan(data) {
+        const res = await fetch(`/api/admin/ban?pw=${pw}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if(res.ok) {
+            alert("차단되었습니다.");
+            loadData();
+        }
+    }
+
+    // 밴 해제 API 호출
+    async function unban(dbId) {
+        if(confirm("차단을 해제하시겠습니까?")) {
+            const res = await fetch(`/api/admin/ban/${dbId}?pw=${pw}`, { method: 'DELETE' });
+            if(res.ok) {
+                alert("해제되었습니다.");
+                loadData();
+            }
+        }
+    }
+
+    // 초기 로딩
+    loadData();
+</script>
+
+</body>
+</html>

@@ -22,6 +22,11 @@
         .clickable-nick { cursor: pointer; }
         .whisper-msg { color: #ff9ff3; font-weight: bold; }
 
+        /* ★ [신규] 크기 조절 바 (Resizer) */
+        #resizer {width: 8px;cursor: col-resize;background: #1f1f1f;display: flex;align-items: center;justify-content: center;transition: background 0.2s;}
+        #resizer:hover { background: #4a90e2; }
+        #resizer::after {content: "⋮";color: #666;font-size: 14px;font-weight: bold;}
+        
         /* 하단 폼 영역 */
         #form { display: flex; padding: 0 4px; background: #3a3a3a; align-items: center; height: 30px; }
         #emo-toggle-btn { width: 26px; height: 100%; background: transparent; border: none; color: #aaa; cursor: pointer; font-size: 18px; }
@@ -82,6 +87,7 @@
                 <button type="submit">전송</button>
             </form>
         </div>
+        <div id="resizer"></div>
         <div id="user-list-container">
             <div id="user-count-header">👤 <span id="user-count-num">0</span></div>
             <ul id="users"></ul>
@@ -351,6 +357,7 @@
     </script>
 </body>
 </html>
+
 
 
 

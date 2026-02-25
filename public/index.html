@@ -100,6 +100,7 @@
                 <button id="btn-whisper">귓속말</button>
                 <button id="btn-call" style="color:#ffd32a;">호출하기</button>
                 <button id="btn-report" style="color: #e67e22; font-weight: bold;">신고하기</button>
+                <button id="btn-get-ip" style="color: #3498db; font-weight: bold; display: none;">IP 확인</button>
                 
                 <div id="admin-controls" class="admin-section">
                     <div class="admin-row">
@@ -260,6 +261,16 @@
 
                 selectedUser = { nick, id };
 
+                const btnReport = document.getElementById('btn-report');
+                const btnGetIp = document.getElementById('btn-get-ip');
+        
+                if (isAdmin) {
+                    btnReport.style.display = 'none';  // 관리자는 신고 대신 제재를 하므로 숨김
+                    btnGetIp.style.display = 'block'; // IP 확인 버튼 노출
+                } else {
+                    btnReport.style.display = 'block';
+                    btnGetIp.style.display = 'none';
+                }
                 // 관리자 UI 및 토글 처리
                 const adminControls = document.getElementById('admin-controls');
                 if (isAdmin) {
@@ -280,7 +291,13 @@
             }
             if (!emoPicker.contains(e.target) && e.target.id !== 'emo-toggle-btn') emoPicker.style.display = 'none';
         });
-
+        // IP 확인 버튼 클릭 이벤트 추가
+            document.getElementById('btn-get-ip').onclick = () => {
+                if (selectedUser) {
+                    socket.emit('get user ip', selectedUser.id);
+                }
+                userPopup.style.display = 'none';
+            };
         // [4] 버튼 기능 구현
         document.getElementById('btn-whisper').onclick = () => { input.value = `/w ${selectedUser.nick} `; input.focus(); userPopup.style.display='none'; };
         
@@ -316,19 +333,23 @@
             userPopup.style.display='none';
         };
 
-        // 관리자 전용: 밴 버튼 (관리자 페이지로 이동)
-        document.getElementById('btn-ban-toggle').onclick = () => {
-            if (confirm(`${selectedUser.nick}님을 IP 밴 하시겠습니까?\n사유 입력을 위해 관리자 페이지로 이동합니다.`)) {
-                const pw = prompt("관리자 비밀번호를 입력하세요.");
-                if(pw) window.open(`/admin?pw=${pw}`, "_blank");
-            }
-            userPopup.style.display='none';
-        };
+        // 1. 밴 버튼 클릭 시 서버에 IP 요청
+document.getElementById('btn-ban-toggle').onclick = () => {
+    if (confirm(`${selectedUser.nick}님을 밴 하시겠습니까?\n사유 입력을 위해 관리자 페이지로 이동합니다.`)) {
+        socket.emit('get ip for ban', selectedUser.id);
+    }
+    userPopup.style.display = 'none';
+};
 
-        document.getElementById('btn-clear').onclick = () => {
-            if(confirm('채팅창을 비우시겠습니까?')) socket.emit('clear chat');
-            userPopup.style.display='none';
-        };
+// 2. 서버가 IP와 함께 응답을 주면 관리자 페이지 열기
+socket.on('open ban page', (data) => {
+    const pw = prompt("관리자 비밀번호를 입력하세요.");
+    if (pw) {
+        // 모든 정보(IP, ID, Nick)를 쿼리 스트링으로 한 번에 전송
+        const url = `/admin?pw=${pw}&banIp=${encodeURIComponent(data.ip)}&banId=${encodeURIComponent(data.id)}&banNick=${encodeURIComponent(data.nick)}`;
+        window.open(url, "_blank");
+    }
+});
 
         // [5] 기타 UI 기능 (이모티콘, 리사이저 등)
         let emos = []; let pg = 1;
@@ -415,6 +436,7 @@
     </script>
 </body>
 </html>
+
 
 
 

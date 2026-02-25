@@ -260,6 +260,23 @@ socket.on('mute user', (target) => {
         }
     });
 
+    socket.on('get user ip', (targetId) => {
+    // 요청자가 관리자인지 확인
+    if (ADMIN_IDS.includes(socket.user?.id)) {
+        // 대상 유저의 소켓 찾기
+        const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
+        
+        if (targetSocket) {
+            const targetIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
+            // 요청한 관리자에게만 시스템 메시지로 IP 전달
+            socket.emit('system message', `[보안] ${targetSocket.user.nick}님의 IP: ${targetIp}`);
+        } else {
+            socket.emit('system message', `[오류] 대상 유저를 찾을 수 없습니다.`);
+        }
+    } else {
+        socket.emit('system message', `[경고] 권한이 없습니다.`);
+    }
+});
     socket.on('clear chat', () => {
         if (ADMIN_IDS.includes(socket.user?.id)) {
             chatHistory = [];

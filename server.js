@@ -135,11 +135,6 @@ io.on('connection', async (socket) => {
         io.emit('user list', getUserListWithAdminStatus());
     });
     
-socket.on('admin auth', () => { 
-    isAdmin = true; 
-    
-});
-
 
     // C. 일반 채팅 (게스트/뮤트 체크 포함)
     socket.on('chat message', (data) => {

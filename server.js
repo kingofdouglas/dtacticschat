@@ -88,7 +88,12 @@ app.delete('/api/admin/report/:id', adminAuth, async (req, res) => {
 
 // [API] 밴 목록 조회
 app.get('/api/admin/bans', adminAuth, async (req, res) => {
-    const bans = await Ban.find().sort({ date: -1 });
+    let bans = await Ban.find().sort({ date: -1 }).lean();
+    bans = bans.map(ban => ({
+        ...ban,
+        ip: ban.ip.includes(',') ? ban.ip.split(',')[0].trim() : ban.ip
+    }));
+    
     res.json(bans);
 });
 

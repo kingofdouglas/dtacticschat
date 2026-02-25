@@ -34,7 +34,8 @@ const Ban = mongoose.model('Ban', new mongoose.Schema({
 // 4. 서버 내부 변수
 let chatHistory = [];
 const connectedUsers = {};
-const mutedIds = new Set(); // Mute는 서버 메모리에서 관리 (서버 재시작 시 초기화)
+// 뮤트 관리를 Set에서 Object로 변경 (ID: {nick, date} 형태)
+let mutedUsers = {}; 
 
 // 5. 유틸리티 함수
 const getUserListWithAdminStatus = () => {
@@ -54,12 +55,11 @@ const adminAuth = (req, res, next) => {
 };
 
 // ------------------------------------------------------------------
-// 7. HTTP 경로 (Route) 설정
+// 7. HTTP 경로 (Route) 및 관리자 API
 // ------------------------------------------------------------------
 
 app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
 
-// 관리자 페이지 접속 (비밀번호 확인 루프 포함)
 app.get('/admin', (req, res) => {
     if (req.query.pw === ADMIN_PW) {
         res.sendFile(path.join(__dirname, 'public', 'admin.html'));
@@ -74,29 +74,59 @@ app.get('/admin', (req, res) => {
     }
 });
 
-// 관리자 API 전용
+// [API] 신고 내역 조회
 app.get('/api/admin/reports', adminAuth, async (req, res) => {
     const reports = await Report.find().sort({ date: -1 });
     res.json(reports);
 });
 
+// [API] 신고 내역 기각(삭제)
+app.delete('/api/admin/report/:id', adminAuth, async (req, res) => {
+    await Report.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+});
+
+// [API] 밴 목록 조회
 app.get('/api/admin/bans', adminAuth, async (req, res) => {
     const bans = await Ban.find().sort({ date: -1 });
     res.json(bans);
 });
 
+// [API] 밴 실행
 app.post('/api/admin/ban', adminAuth, async (req, res) => {
     const { ip, id, nick, reason } = req.body;
     await Ban.create({ ip, id, nick, reason });
     res.json({ success: true });
 });
 
+// [API] 밴 해제
 app.delete('/api/admin/ban/:id', adminAuth, async (req, res) => {
     await Ban.findByIdAndDelete(req.params.id);
     res.json({ success: true });
 });
 
-// 이모티콘 목록 불러오기
+// [API] 실시간 뮤트 목록 조회 (Set 대신 객체 사용)
+app.get('/api/admin/mutes', adminAuth, (req, res) => {
+    const muteList = Object.keys(mutedUsers).map(id => ({
+        id: id,
+        nick: mutedUsers[id].nick,
+        date: mutedUsers[id].date
+    }));
+    res.json(muteList);
+});
+
+// [API] 뮤트 해제
+app.delete('/api/admin/mute/:id', adminAuth, (req, res) => {
+    const targetId = req.params.id;
+    if (mutedUsers[targetId]) {
+        delete mutedUsers[targetId];
+        res.json({ success: true });
+    } else {
+        res.status(404).json({ error: "대상자를 찾을 수 없습니다." });
+    }
+});
+
+// 이모티콘 목록
 app.get('/api/emoticons', (req, res) => {
     const emoticonsDir = path.join(__dirname, 'public', 'emoticons');
     fs.readdir(emoticonsDir, (err, files) => {
@@ -113,7 +143,7 @@ app.get('/api/emoticons', (req, res) => {
 io.on('connection', async (socket) => {
     const clientIp = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
 
-    // A. 접속 시 즉시 IP 차단 체크
+    // A. IP 차단 체크
     try {
         const isBanned = await Ban.findOne({ ip: clientIp });
         if (isBanned) {
@@ -134,15 +164,15 @@ io.on('connection', async (socket) => {
         if (chatHistory.length > 0) socket.emit('chat history', chatHistory);
         io.emit('user list', getUserListWithAdminStatus());
     });
-    
 
-    // C. 일반 채팅 (게스트/뮤트 체크 포함)
+    // C. 일반 채팅
     socket.on('chat message', (data) => {
         if (data.user.id === 'guest') {
             return socket.emit('system message', '게스트는 채팅을 할 수 없습니다.');
         }
 
-        if (mutedIds.has(data.user.id)) {
+        // 뮤트 체크 (수정됨)
+        if (mutedUsers[data.user.id]) {
             return socket.emit('system message', '관리자에 의해 채팅이 금지된 상태입니다.');
         }
 
@@ -157,12 +187,8 @@ io.on('connection', async (socket) => {
         if (chatHistory.length > 30) chatHistory.shift();
         io.emit('chat message', msgData);
     });
-    // 신고 내역 기각(삭제) API
-    app.delete('/api/admin/report/:id', adminAuth, async (req, res) => {
-        await Report.findByIdAndDelete(req.params.id);
-        res.json({ success: true });
-    });
-    // D. 신고 접수 (DB 저장)
+
+    // D. 신고 접수
     socket.on('report user', async (target) => {
         const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === target.id);
         const targetIp = targetSocket ? (targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address) : 'Unknown';
@@ -200,17 +226,20 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // G. 관리자 전용 제어 (Mute, Clear)
-    socket.on('mute user', (targetId) => {
+    // G. 관리자 전용 제어 (Mute 수정)
+    socket.on('mute user', (target) => { // target을 객체로 받음 {id, nick}
         if (ADMIN_IDS.includes(socket.user?.id)) {
-            mutedIds.add(targetId);
-            socket.emit('system message', `[관리] 해당 유저(${targetId})를 뮤트했습니다.`);
+            mutedUsers[target.id] = {
+                nick: target.nick,
+                date: new Date()
+            };
+            socket.emit('system message', `[관리] ${target.nick}님을 뮤트했습니다.`);
         }
     });
 
     socket.on('unmute user', (targetId) => {
         if (ADMIN_IDS.includes(socket.user?.id)) {
-            mutedIds.delete(targetId);
+            delete mutedUsers[targetId];
             socket.emit('system message', `[관리] 해당 유저의 뮤트를 해제했습니다.`);
         }
     });
@@ -231,6 +260,5 @@ io.on('connection', async (socket) => {
     });
 });
 
-// 서버 실행
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => { console.log(`🚀 서버 실행 중: ${PORT}`); });

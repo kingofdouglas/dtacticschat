@@ -8,7 +8,7 @@ const path = require('path');
 let chatHistory = [];
 const connectedUsers = {};
 const mutedIds = new Set();
-const ADMIN_IDS = ['dirtyass', 'dirtyass2', 'master']; // 관리자 ID 목록 통합
+const ADMIN_IDS = ['dirtyass', 'dirtyass2', 'master']; 
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -24,51 +24,30 @@ app.get('/api/emoticons', (req, res) => {
 });
 
 io.on('connection', (socket) => {
-    // 1. 유저 입장
     socket.on('join', (userData) => {
         socket.user = userData;
         connectedUsers[socket.id] = userData;
-
-        // 접속 시 이전 기록 전송
-        if (chatHistory.length > 0) {
-            socket.emit('chat history', chatHistory);
-        }
-
+        if (chatHistory.length > 0) socket.emit('chat history', chatHistory);
         io.emit('system message', `${userData.nick}님이 입장하셨습니다.`);
         io.emit('user list', Object.values(connectedUsers));
     });
 
-    // 2. 일반 채팅 메시지 처리
     socket.on('chat message', (data) => {
         const senderId = connectedUsers[socket.id]?.id;
-        
         if (mutedIds.has(senderId)) {
             socket.emit('system message', '관리자에 의해 채팅이 금지된 상태입니다.');
             return;
         }
-
-        const msgData = {
-            type: data.type,
-            user: data.user,
-            content: data.content,
-            timestamp: Date.now()
-        };
-
-        // 기록 저장 (최근 10개)
+        const msgData = { type: data.type, user: data.user, content: data.content, timestamp: Date.now() };
         chatHistory.push(msgData);
         if (chatHistory.length > 10) chatHistory.shift();
-
         io.emit('chat message', msgData);
     });
 
-    // 3. 귓속말 기능
     socket.on('whisper', (data) => {
         let targetSocketId = null;
         for (let sid in connectedUsers) {
-            if (connectedUsers[sid].nick === data.targetNick) {
-                targetSocketId = sid;
-                break;
-            }
+            if (connectedUsers[sid].nick === data.targetNick) { targetSocketId = sid; break; }
         }
         if (targetSocketId) {
             const whisperData = { ...data, timestamp: Date.now() };
@@ -79,29 +58,41 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 4. 관리자 기능
+    // ★ [신규] 호출 기능 처리
+    socket.on('call user', (data) => {
+        let targetSocketId = null;
+        for (let sid in connectedUsers) {
+            if (connectedUsers[sid].nick === data.targetNick) { targetSocketId = sid; break; }
+        }
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('call alert', { sender: data.sender });
+            socket.emit('system message', `[안내] ${data.targetNick}님을 호출했습니다.`);
+        } else {
+            socket.emit('system message', '[안내] 접속 중인 유저가 아닙니다.');
+        }
+    });
+
     socket.on('mute user', (targetId) => {
         if (ADMIN_IDS.includes(connectedUsers[socket.id]?.id)) {
             mutedIds.add(targetId);
-            socket.emit('system message', `해당 유저(ID: ${targetId})의 채팅을 금지했습니다.`);
+            socket.emit('system message', `해당 유저의 채팅을 금지했습니다.`);
         }
     });
 
     socket.on('unmute user', (targetId) => {
         if (ADMIN_IDS.includes(connectedUsers[socket.id]?.id)) {
             mutedIds.delete(targetId);
-            socket.emit('system message', `해당 유저(ID: ${targetId})의 채팅 금지를 해제했습니다.`);
+            socket.emit('system message', `해당 유저의 채팅 금지를 해제했습니다.`);
         }
     });
 
     socket.on('clear chat', () => {
         if (ADMIN_IDS.includes(connectedUsers[socket.id]?.id)) {
-            chatHistory = []; // 메모리 기록도 삭제
+            chatHistory = [];
             io.emit('clear chat');
         }
     });
 
-    // 5. 퇴장 처리
     socket.on('disconnect', () => {
         if (connectedUsers[socket.id]) {
             const nick = connectedUsers[socket.id].nick;

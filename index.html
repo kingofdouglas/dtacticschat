@@ -99,354 +99,234 @@
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        const socket = io();
-        const urlParams = new URLSearchParams(window.location.search);
-        const myNick = urlParams.get('nick') || 'Guest_' + Math.floor(Math.random() * 100);
-        const myId = urlParams.get('id') || 'guest';
-        let myIcon = urlParams.get('icon') || urlParams.get('con') || '';
-        
-        const fixPath = (p) => (p.startsWith('.') || p.startsWith('/')) ? 'http://forceofd.org/dt/' + p.replace(/^\.?\//, '') : p;
-        myIcon = fixPath(myIcon);
+       const socket = io();
+const urlParams = new URLSearchParams(window.location.search);
+const myNick = urlParams.get('nick') || 'Guest_' + Math.floor(Math.random() * 100);
+const myId = urlParams.get('id') || 'guest';
+let myIcon = urlParams.get('icon') || urlParams.get('con') || '';
 
-        const myInfo = { nick: myNick, id: myId, icon: myIcon };
+const fixPath = (p) => (p.startsWith('.') || p.startsWith('/')) ? 'http://forceofd.org/dt/' + p.replace(/^\.?\//, '') : p;
+myIcon = fixPath(myIcon);
 
-        let isAdmin = false; 
-        socket.on('admin auth', () => { isAdmin = true; });
+const myInfo = { nick: myNick, id: myId, icon: myIcon };
 
-        const localMutedIds = new Set();
-        const callCooldowns = {};
+let isAdmin = false; 
+socket.on('admin auth', () => { isAdmin = true; });
 
-        socket.emit('join', myInfo);
+const localMutedIds = new Set();
+const callCooldowns = {};
 
-        const messages = document.getElementById('messages');
-        const input = document.getElementById('input');
-        const userPopup = document.getElementById('user-popup');
-        const emoPicker = document.getElementById('emo-picker');
-        const timeTooltip = document.getElementById('time-tooltip');
-        let selectedUser = { nick: '', id: '' };
+socket.emit('join', myInfo);
 
-        // ★ [링크 변환 함수] XSS 방지 및 URL 하이퍼링크 처리
-        function parseChatText(text) {
-            let safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            const urlRegex = /(https?:\/\/[^\s]+)/g;
-            return safeText.replace(urlRegex, function(url) {
-                return `<a href="${url}" target="_blank" style="color: #5dade2; text-decoration: underline;">${url}</a>`;
-            });
-        }
+const messages = document.getElementById('messages');
+const input = document.getElementById('input');
+const userPopup = document.getElementById('user-popup');
+const emoPicker = document.getElementById('emo-picker');
+const timeTooltip = document.getElementById('time-tooltip');
+let selectedUser = { nick: '', id: '' };
 
-        function displayMessage(data, isWhisper = false, whisperPrefix = "") {
-            const item = document.createElement('li');
-            if (data.user.nick === myNick) item.classList.add('my-message-bg');
+// [1] 채팅 관련 함수들
+function parseChatText(text) {
+    let safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return safeText.replace(urlRegex, (url) => `<a href="${url}" target="_blank" style="color: #5dade2; text-decoration: underline;">${url}</a>`);
+}
 
-            item.setAttribute('data-time', data.timestamp || Date.now());
-            item.setAttribute('data-nick', data.user.nick);
+function displayMessage(data, isWhisper = false, whisperPrefix = "") {
+    const item = document.createElement('li');
+    if (data.user.nick === myNick) item.classList.add('my-message-bg');
+    item.setAttribute('data-time', data.timestamp || Date.now());
+    item.setAttribute('data-nick', data.user.nick);
 
-            const iconHtml = data.user.icon ? `<img src="${fixPath(data.user.icon)}" class="user-icon" onerror="this.style.display='none'">` : '';
-            const nickClass = (data.user.nick === myNick) ? 'my-nickname' : 'other-nickname';
-            
-            // ★ 이미지면 그대로, 텍스트면 링크 변환 함수 적용
-            let contentHtml = '';
-            if (data.type === 'image') {
-                contentHtml = `<img src="${data.content}" class="chat-emoticon">`;
-            } else {
-                contentHtml = `<span class="msg-text">${parseChatText(data.content)}</span>`;
-            }
+    const iconHtml = data.user.icon ? `<img src="${fixPath(data.user.icon)}" class="user-icon" onerror="this.style.display='none'">` : '';
+    const nickClass = (data.user.nick === myNick) ? 'my-nickname' : 'other-nickname';
+    
+    let contentHtml = data.type === 'image' 
+        ? `<img src="${data.content}" class="chat-emoticon">` 
+        : `<span class="msg-text">${parseChatText(data.content)}</span>`;
 
-            item.innerHTML = isWhisper 
-                ? `<span class="whisper-msg">${whisperPrefix}</span> <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> ${contentHtml}`
-                : `${iconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> ${contentHtml}`;
+    item.innerHTML = isWhisper 
+        ? `<span class="whisper-msg">${whisperPrefix}</span> <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> ${contentHtml}`
+        : `${iconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> ${contentHtml}`;
 
-            messages.appendChild(item);
-            messages.scrollTop = messages.scrollHeight;
-        }
+    messages.appendChild(item);
+    messages.scrollTop = messages.scrollHeight;
+}
 
-        socket.on('chat history', (h) => { h.forEach(d => displayMessage(d)); });
-        socket.on('chat message', (d) => displayMessage(d));
-        socket.on('whisper', (d) => {
-            const prefix = (d.user.nick === myNick) ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
-            displayMessage(d, true, prefix);
-        });
+// [2] 소켓 이벤트
+socket.on('chat history', (h) => h.forEach(d => displayMessage(d)));
+socket.on('chat message', (d) => displayMessage(d));
+socket.on('whisper', (d) => {
+    const prefix = (d.user.nick === myNick) ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
+    displayMessage(d, true, prefix);
+});
+socket.on('call alert', (data) => {
+    document.getElementById('call-sound').play().catch(() => {});
+    const item = document.createElement('li');
+    item.innerHTML = `<span style="color:#ffd32a; font-weight:bold;">[호출] 🔔 ${data.sender}님이 당신을 호출했습니다!</span>`;
+    messages.appendChild(item);
+    messages.scrollTop = messages.scrollHeight;
+});
+socket.on('system message', (msg) => {
+    const item = document.createElement('li');
+    item.innerHTML = `<span class="system-msg">${msg}</span>`;
+    messages.appendChild(item);
+    messages.scrollTop = messages.scrollHeight;
+});
+socket.on('clear chat', () => { messages.innerHTML = ''; });
+socket.on('disconnect', () => setTimeout(() => location.reload(), 2000));
 
-        socket.on('call alert', (data) => {
-            const audio = document.getElementById('call-sound');
-            audio.play().catch(e => console.log('소리 재생 차단됨:', e)); 
-            const item = document.createElement('li');
-            item.innerHTML = `<span style="color:#ffd32a; font-weight:bold;">[호출] 🔔 ${data.sender}님이 당신을 호출했습니다!</span>`;
-            messages.appendChild(item);
-            messages.scrollTop = messages.scrollHeight;
-        });
+// [3] 유저 목록 및 접기 기능
+socket.on('user list', (users) => {
+    const list = document.getElementById('users');
+    list.innerHTML = '';
+    document.getElementById('user-count-num').innerText = users.length;
+    users.sort((a, b) => (a.isAdmin === b.isAdmin ? 0 : a.isAdmin ? -1 : 1)).forEach(u => {
+        const li = document.createElement('li');
+        const isMe = (u.nick === myNick);
+        const crown = u.isAdmin ? '👑' : '';
+        const icon = u.icon ? `<img src="${fixPath(u.icon)}" class="user-icon">` : '';
+        li.innerHTML = `${crown}${icon}<span class="clickable-nick" data-nick="${u.nick}" data-id="${u.id}" style="color:${isMe ? '#5dade2' : '#dfdfdf'};">${u.nick}</span>`;
+        list.appendChild(li);
+    });
+});
 
-        socket.on('system message', (msg) => {
-            const item = document.createElement('li');
-            item.innerHTML = `<span class="system-msg">${msg}</span>`;
-            messages.appendChild(item);
-            messages.scrollTop = messages.scrollHeight;
-        });
+document.getElementById('user-count-header').onclick = () => {
+    const uList = document.getElementById('users');
+    const rzr = document.getElementById('resizer');
+    const cont = document.getElementById('user-list-container');
+    const isHidden = uList.style.display === 'none';
+    uList.style.display = isHidden ? 'block' : 'none';
+    rzr.style.display = isHidden ? 'flex' : 'none';
+    cont.style.width = isHidden ? '160px' : 'auto';
+    cont.style.minWidth = isHidden ? 'none' : '50px';
+};
 
-        socket.on('clear chat', () => { messages.innerHTML = ''; });
-        socket.on('disconnect', () => { setTimeout(() => location.reload(), 2000); });
+// [4] 크기 조절 (Resizer)
+const resizer = document.getElementById('resizer');
+const userListCont = document.getElementById('user-list-container');
+let isResizing = false;
+resizer.addEventListener('mousedown', () => { isResizing = true; document.body.style.userSelect = 'none'; });
+document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+    const offsetRight = document.body.offsetWidth - e.pageX;
+    if (offsetRight > 80 && offsetRight < 400) userListCont.style.width = offsetRight + 'px';
+});
+document.addEventListener('mouseup', () => { isResizing = false; document.body.style.userSelect = 'auto'; });
 
-        // 유저 목록 갱신
-        socket.on('user list', (users) => {
-            const list = document.getElementById('users');
-            list.innerHTML = '';
-            
-            // ★ [신규] 접속자 숫자 갱신
-            document.getElementById('user-count-num').innerText = users.length;
-            
-            users.sort((a, b) => {
-                if (a.isAdmin && !b.isAdmin) return -1;
-                if (!a.isAdmin && b.isAdmin) return 1;
-                return 0; 
-            }).forEach(u => {
-                const li = document.createElement('li');
-                const isMe = (u.nick === myNick);
-                const crown = u.isAdmin ? '👑' : '';
-                const icon = u.icon ? `<img src="${fixPath(u.icon)}" class="user-icon">` : '';
-                li.innerHTML = `${crown}${icon}<span class="clickable-nick" data-nick="${u.nick}" data-id="${u.id}" style="color:${isMe ? '#5dade2' : '#dfdfdf'};">${u.nick}</span>`;
-                list.appendChild(li);
-            });
-        });
-        // 기존 변수 선언들 아래에 추가
-        const resizer = document.getElementById('resizer');
-        const userListCont = document.getElementById('user-list-container');
-        let isResizing = false;
-        
-        // 마우스를 눌렀을 때
-        resizer.addEventListener('mousedown', (e) => {
-            isResizing = true;
-            document.body.style.cursor = 'col-resize'; // 마우스 커서 모양 변경
-            // 드래그 중 텍스트 선택 방지
-            document.body.style.userSelect = 'none';
-        });
-        
-        // 마우스를 움직일 때
-        document.addEventListener('mousemove', (e) => {
-            if (!isResizing) return;
-        
-            // 오른쪽 끝에서의 거리를 계산하여 접속자 목록 너비 설정
-            const offsetRight = document.body.offsetWidth - e.pageX;
-            
-            // 최소 너비 80px, 최대 너비 400px 제한 (원하는 대로 조절 가능)
-            if (offsetRight > 80 && offsetRight < 400) {
-                userListCont.style.width = offsetRight + 'px';
-            }
-        });
-        
-        // 마우스를 뗐을 때
-        document.addEventListener('mouseup', () => {
-            isResizing = false;
-            document.body.style.cursor = 'default';
-            document.body.style.userSelect = 'auto';
-        });
-        document.getElementById('form').onsubmit = (e) => {
-            e.preventDefault();
-            const val = input.value.trim();
-            if(!val) return;
-            if (val.startsWith('/w ')) {
-                const p = val.split(' ');
-                if (p.length > 2) socket.emit('whisper', { targetNick: p[1], user: myInfo, content: p.slice(2).join(' ') });
-            } else {
-                socket.emit('chat message', { type: 'text', user: myInfo, content: val });
-            }
-            input.value = '';
+// [5] 이모티콘 기능 (최근 사용 포함)
+let emos = []; 
+let pg = 1;
+let recentEmos = JSON.parse(localStorage.getItem('recentEmos') || '[]');
+
+const drawEmos = () => {
+    const list = document.getElementById('emo-list');
+    list.innerHTML = '';
+    const otherEmos = emos.filter(f => !recentEmos.includes(f));
+    const sortedEmos = [...recentEmos, ...otherEmos];
+
+    sortedEmos.slice((pg-1)*10, pg*10).forEach(f => {
+        const img = document.createElement('img');
+        img.src = `/emoticons/${f}`;
+        img.onclick = () => {
+            socket.emit('chat message', { type:'image', user:myInfo, content:img.src });
+            updateRecentEmos(f);
             emoPicker.style.display = 'none';
         };
-        // 접속자 헤더 클릭 이벤트
-        document.getElementById('user-count-header').style.cursor = 'pointer'; // 커서 모양 변경
-        document.getElementById('user-count-header').onclick = () => {
-            const userList = document.getElementById('users');
-            const resizer = document.getElementById('resizer');
-            const container = document.getElementById('user-list-container');
-        
-            if (userList.style.display === 'none') {
-                // 펴기
-                userList.style.display = 'block';
-                resizer.style.display = 'flex';
-                container.style.width = '160px'; // 기본 너비로 복구
-            } else {
-                // 접기
-                userList.style.display = 'none';
-                resizer.style.display = 'none';
-                container.style.width = 'auto'; // 헤더 크기에 맞게 축소
-                container.style.minWidth = '50px';
-            }
-        };
-        // ★ [신규] 빈 공간 클릭 시 이모티콘 창 & 팝업 닫기
-        document.addEventListener('click', (e) => {
-            // 1. 유저 닉네임 팝업 제어
-            if (e.target.classList.contains('clickable-nick')) {
-                const nick = e.target.getAttribute('data-nick');
-                if (nick === myNick) return;
-                selectedUser = { nick: nick, id: e.target.getAttribute('data-id') };
-                
-                document.getElementById('btn-mute').style.display = 'none';
-                document.getElementById('btn-unmute').style.display = 'none';
-                document.getElementById('btn-clear').style.display = 'none';
+        list.appendChild(img);
+    });
+    document.getElementById('emo-page-info').innerText = `${pg}/${Math.ceil(sortedEmos.length/10) || 1}`;
+};
 
-                if (isAdmin) {
-                    const isMuted = localMutedIds.has(selectedUser.id);
-                    document.getElementById('btn-mute').style.display = isMuted ? 'none' : 'block';
-                    document.getElementById('btn-unmute').style.display = isMuted ? 'block' : 'none';
-                    document.getElementById('btn-clear').style.display = 'block';
-                }
-                
-                userPopup.style.display = 'flex';
-                let x = e.pageX + 10;
-                let y = e.pageY + 10;
-                const popW = userPopup.offsetWidth;
-                const popH = userPopup.offsetHeight;
+function updateRecentEmos(file) {
+    recentEmos = [file, ...recentEmos.filter(e => e !== file)].slice(0, 10);
+    localStorage.setItem('recentEmos', JSON.stringify(recentEmos));
+    drawEmos();
+}
 
-                if (x + popW > window.innerWidth) x = e.pageX - popW - 10;
-                if (y + popH > window.innerHeight) y = e.pageY - popH - 10;
-                userPopup.style.left = x + 'px';
-                userPopup.style.top = y + 'px';
-            } else if (!userPopup.contains(e.target)) {
-                userPopup.style.display = 'none'; // 팝업 밖을 누르면 팝업 닫기
-            }
+fetch('/api/emoticons').then(r => r.json()).then(f => { emos = f; drawEmos(); });
+document.getElementById('emo-toggle-btn').onclick = () => emoPicker.style.display = (emoPicker.style.display==='flex'?'none':'flex');
+document.getElementById('emo-prev').onclick = () => { if(pg>1){ pg--; drawEmos(); } };
+document.getElementById('emo-next').onclick = () => { if(pg < Math.ceil(emos.length/10)){ pg++; drawEmos(); } };
 
-            // 2. 이모티콘 창 제어 (+버튼과 창 내부를 제외한 곳 클릭 시 닫기)
-            const toggleBtn = document.getElementById('emo-toggle-btn');
-            if (!emoPicker.contains(e.target) && e.target !== toggleBtn) {
-                emoPicker.style.display = 'none';
-            }
-        });
+// [6] 입력 및 팝업 제어
+document.getElementById('form').onsubmit = (e) => {
+    e.preventDefault();
+    const val = input.value.trim();
+    if(!val) return;
+    if (val.startsWith('/w ')) {
+        const p = val.split(' ');
+        if (p.length > 2) socket.emit('whisper', { targetNick: p[1], user: myInfo, content: p.slice(2).join(' ') });
+    } else {
+        socket.emit('chat message', { type: 'text', user: myInfo, content: val });
+    }
+    input.value = '';
+    emoPicker.style.display = 'none';
+};
 
-        // 시간 툴팁
-        function formatTimeDiff(timestamp) {
-            const diffMins = Math.floor((Date.now() - timestamp) / 60000);
-            if (diffMins < 1) return '방금 전';
-            if (diffMins < 60) return `${diffMins}분 전`;
-            const diffHours = Math.floor(diffMins / 60);
-            if (diffHours < 24) return `${diffHours}시간 전`;
-            return `${Math.floor(diffHours / 24)}일 전`;
+document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('clickable-nick')) {
+        const nick = e.target.getAttribute('data-nick');
+        if (nick === myNick) return;
+        selectedUser = { nick: nick, id: e.target.getAttribute('data-id') };
+        document.querySelectorAll('.admin-btn').forEach(b => b.style.display = isAdmin ? 'block' : 'none');
+        if (isAdmin) {
+            const isMuted = localMutedIds.has(selectedUser.id);
+            document.getElementById('btn-mute').style.display = isMuted ? 'none' : 'block';
+            document.getElementById('btn-unmute').style.display = isMuted ? 'block' : 'none';
         }
+        userPopup.style.display = 'flex';
+        userPopup.style.left = Math.min(e.pageX + 10, window.innerWidth - 100) + 'px';
+        userPopup.style.top = Math.min(e.pageY + 10, window.innerHeight - 100) + 'px';
+    } else if (!userPopup.contains(e.target)) {
+        userPopup.style.display = 'none';
+    }
+    if (!emoPicker.contains(e.target) && e.target.id !== 'emo-toggle-btn') emoPicker.style.display = 'none';
+});
 
-        let tooltipTimeout;
-        let mouseX = 0, mouseY = 0;
+// [7] 시간 툴팁
+function formatTimeDiff(ts) {
+    const m = Math.floor((Date.now() - ts) / 60000);
+    if (m < 1) return '방금 전';
+    if (m < 60) return `${m}분 전`;
+    const h = Math.floor(m / 60);
+    return h < 24 ? `${h}시간 전` : `${Math.floor(h / 24)}일 전`;
+}
+messages.addEventListener('mouseover', (e) => {
+    const li = e.target.closest('li');
+    if (li && li.hasAttribute('data-time')) {
+        clearTimeout(tooltipTimeout);
+        tooltipTimeout = setTimeout(() => {
+            timeTooltip.innerText = `${li.getAttribute('data-nick')} ${formatTimeDiff(parseInt(li.getAttribute('data-time')))}`;
+            timeTooltip.style.display = 'block';
+            timeTooltip.style.left = (mouseX + 15) + 'px';
+            timeTooltip.style.top = (mouseY + 15) + 'px';
+        }, 700);
+    }
+});
+let mouseX, mouseY, tooltipTimeout;
+document.addEventListener('mousemove', (e) => { mouseX = e.pageX; mouseY = e.pageY; });
+messages.addEventListener('mouseout', () => { clearTimeout(tooltipTimeout); timeTooltip.style.display = 'none'; });
 
-        function updateTooltipPosition() {
-            let pw = timeTooltip.offsetWidth;
-            let ph = timeTooltip.offsetHeight;
-            let x = mouseX + 15;
-            let y = mouseY + 15;
-            
-            if (x + pw > window.innerWidth) x = mouseX - pw - 10;
-            if (y + ph > window.innerHeight) y = mouseY - ph - 10;
-            if (y < 0) y = 5;
-
-            timeTooltip.style.left = x + 'px';
-            timeTooltip.style.top = y + 'px';
-        }
-
-        messages.addEventListener('mousemove', (e) => {
-            mouseX = e.pageX; mouseY = e.pageY;
-            if (timeTooltip.style.display === 'block') updateTooltipPosition();
-        });
-
-        messages.addEventListener('mouseover', (e) => {
-            const li = e.target.closest('li');
-            if (li && li.hasAttribute('data-time')) {
-                const sendNick = li.getAttribute('data-nick') || '알 수 없음';
-                const timeStr = formatTimeDiff(parseInt(li.getAttribute('data-time')));
-                tooltipTimeout = setTimeout(() => {
-                    timeTooltip.innerText = `${sendNick} ${timeStr}`;
-                    timeTooltip.style.display = 'block';
-                    updateTooltipPosition(); 
-                }, 700);
-            }
-        });
-
-        messages.addEventListener('mouseout', (e) => {
-            if (e.target.closest('li')) {
-                clearTimeout(tooltipTimeout);
-                timeTooltip.style.display = 'none';
-            }
-        });
-        // [추가] 최근 사용 이모티콘을 저장할 배열
-        let recentEmos = JSON.parse(localStorage.getItem('recentEmos') || '[]');
-        
-        const drawEmos = () => {
-            const list = document.getElementById('emo-list');
-            list.innerHTML = '';
-        
-            // ★ 전체 이모티콘 목록 재구성 (최근 사용 이모티콘을 맨 앞으로)
-            // 1. 전체 목록에서 최근 사용한 것들을 제외한 나머지 추출
-            const otherEmos = emos.filter(f => !recentEmos.includes(f));
-            // 2. 최근 사용 목록 + 나머지 목록 합치기
-            const sortedEmos = [...recentEmos, ...otherEmos];
-        
-            sortedEmos.slice((pg-1)*10, pg*10).forEach(f => {
-                const img = document.createElement('img');
-                img.src = `/emoticons/${f}`;
-                img.onclick = () => {
-                    socket.emit('chat message', { type:'image', user:myInfo, content:img.src });
-                    
-                    // ★ 클릭 시 최근 사용 목록 업데이트
-                    updateRecentEmos(f); 
-                    
-                    emoPicker.style.display='none';
-                };
-                list.appendChild(img);
-            });
-            document.getElementById('emo-page-info').innerText = `${pg}/${Math.ceil(emos.length/10) || 1}`;
-        };
-        
-        // [추가] 최근 사용 목록 업데이트 함수
-        function updateRecentEmos(file) {
-            // 이미 있으면 지우고 맨 앞으로 (최신화)
-            recentEmos = recentEmos.filter(e => e !== file);
-            recentEmos.unshift(file);
-            
-            // 최대 10개까지만 기억 (한 페이지 분량)
-            if (recentEmos.length > 10) recentEmos.pop();
-            
-            localStorage.setItem('recentEmos', JSON.stringify(recentEmos));
-            drawEmos(); // 목록 새로고침
-        }
-        // 이모티콘 렌더링
-        let emos = []; let pg = 1;
-        const drawEmos = () => {
-            const list = document.getElementById('emo-list');
-            list.innerHTML = '';
-            emos.slice((pg-1)*10, pg*10).forEach(f => {
-                const img = document.createElement('img');
-                img.src = `/emoticons/${f}`;
-                img.onclick = () => { socket.emit('chat message', { type:'image', user:myInfo, content:img.src }); emoPicker.style.display='none'; };
-                list.appendChild(img);
-            });
-            document.getElementById('emo-page-info').innerText = `${pg}/${Math.ceil(emos.length/10) || 1}`;
-        };
-
-        fetch('/api/emoticons').then(r => r.json()).then(f => { emos = f; drawEmos(); });
-        document.getElementById('emo-toggle-btn').onclick = () => emoPicker.style.display = (emoPicker.style.display==='flex'?'none':'flex');
-        document.getElementById('emo-prev').onclick = () => { if(pg>1){ pg--; drawEmos(); } };
-        document.getElementById('emo-next').onclick = () => { if(pg < Math.ceil(emos.length/10)){ pg++; drawEmos(); } };
-
-        document.getElementById('btn-whisper').onclick = () => { input.value = `/w ${selectedUser.nick} `; input.focus(); userPopup.style.display='none'; };
-        
-        document.getElementById('btn-call').onclick = () => {
-            const now = Date.now();
-            const lastCallTime = callCooldowns[selectedUser.id];
-            
-            if (lastCallTime && (now - lastCallTime < 600000)) {
-                const item = document.createElement('li');
-                item.innerHTML = `<span class="system-msg">[안내] 같은 대상은 10분에 한 번만 호출 가능합니다.</span>`;
-                messages.appendChild(item);
-                messages.scrollTop = messages.scrollHeight;
-            } else {
-                callCooldowns[selectedUser.id] = now;
-                socket.emit('call user', { targetNick: selectedUser.nick, sender: myNick });
-            }
-            userPopup.style.display='none';
-        };
-
-        document.getElementById('btn-mute').onclick = () => { socket.emit('mute user', selectedUser.id); localMutedIds.add(selectedUser.id); userPopup.style.display='none'; };
-        document.getElementById('btn-unmute').onclick = () => { socket.emit('unmute user', selectedUser.id); localMutedIds.delete(selectedUser.id); userPopup.style.display='none'; };
-        document.getElementById('btn-clear').onclick = () => { socket.emit('clear chat'); userPopup.style.display='none'; };
+// 버튼 기능들
+document.getElementById('btn-whisper').onclick = () => { input.value = `/w ${selectedUser.nick} `; input.focus(); userPopup.style.display='none'; };
+document.getElementById('btn-call').onclick = () => {
+    const now = Date.now();
+    if (callCooldowns[selectedUser.id] && (now - callCooldowns[selectedUser.id] < 600000)) {
+        displayMessage({user:{nick:'시스템'}, content:'[안내] 호출은 10분에 한 번 가능합니다.'});
+    } else {
+        callCooldowns[selectedUser.id] = now;
+        socket.emit('call user', { targetNick: selectedUser.nick, sender: myNick });
+    }
+    userPopup.style.display='none';
+};
+document.getElementById('btn-mute').onclick = () => { socket.emit('mute user', selectedUser.id); localMutedIds.add(selectedUser.id); userPopup.style.display='none'; };
+document.getElementById('btn-unmute').onclick = () => { socket.emit('unmute user', selectedUser.id); localMutedIds.delete(selectedUser.id); userPopup.style.display='none'; };
+document.getElementById('btn-clear').onclick = () => { socket.emit('clear chat'); userPopup.style.display='none'; };
     </script>
 </body>
 </html>
+
 
 
 

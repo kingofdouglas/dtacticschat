@@ -164,7 +164,26 @@
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         }
-
+            // 1. 서버로부터 관리자 인증을 받았을 때 버튼 보이기
+            socket.on('admin auth', (isAdminAuth) => {
+                if (isAdminAuth) {
+                    isAdmin = true; // 클라이언트 변수 업데이트
+                    const adminBtn = document.getElementById('btn-go-admin');
+                    if (adminBtn) adminBtn.style.display = 'inline-block';
+                }
+            });
+            
+            // 2. ⚙️ 버튼 클릭 이벤트 (반드시 html 내 script 태그 안에 위치)
+            const adminBtn = document.getElementById('btn-go-admin');
+            if (adminBtn) {
+                adminBtn.onclick = () => {
+                    const pw = prompt("관리자 비밀번호를 입력하세요.");
+                    if (pw) {
+                        // 주소창의 pw 쿼리를 통해 관리자 페이지로 이동
+                        location.href = "/admin?pw=" + pw;
+                    }
+                };
+            }
         // [2] 소켓 이벤트 핸들러
         socket.on('chat history', (h) => h.forEach(d => displayMessage(d)));
         socket.on('chat message', (d) => displayMessage(d));
@@ -366,4 +385,5 @@
     </script>
 </body>
 </html>
+
 

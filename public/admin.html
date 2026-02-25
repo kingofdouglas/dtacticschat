@@ -37,7 +37,6 @@
         .btn-unban { background: #2ecc71; color: white; }
         .btn-refresh { background: #4a90e2; color: white; padding: 10px 20px; }
         
-        /* 수동 차단 폼 스타일 */
         .ban-form { 
             background: #252525; padding: 20px; border-radius: 8px; 
             display: flex; gap: 10px; align-items: center; border: 1px solid #444; margin-bottom: 20px;
@@ -86,13 +85,7 @@
     <div class="table-wrapper">
         <table id="reportTable">
             <thead>
-                <tr>
-                    <th>대상 유저</th>
-                    <th>IP 주소</th>
-                    <th>신고자</th>
-                    <th>날짜</th>
-                    <th>관리</th>
-                </tr>
+                <tr><th>대상 유저</th><th>IP 주소</th><th>신고자</th><th>날짜</th><th>관리</th></tr>
             </thead>
             <tbody></tbody>
         </table>
@@ -102,12 +95,7 @@
     <div class="table-wrapper">
         <table id="banTable">
             <thead>
-                <tr>
-                    <th>닉네임</th>
-                    <th>IP 주소</th>
-                    <th>사유</th>
-                    <th>관리</th>
-                </tr>
+                <tr><th>닉네임</th><th>IP 주소</th><th>사유</th><th>관리</th></tr>
             </thead>
             <tbody></tbody>
         </table>
@@ -117,11 +105,7 @@
     <div class="table-wrapper">
         <table id="muteTable">
             <thead>
-                <tr>
-                    <th>유저 ID</th>
-                    <th>상태</th>
-                    <th>관리</th>
-                </tr>
+                <tr><th>유저 ID</th><th>상태</th><th>관리</th></tr>
             </thead>
             <tbody></tbody>
         </table>
@@ -132,16 +116,16 @@
     const urlParams = new URLSearchParams(window.location.search);
     const pw = urlParams.get('pw');
 
+    // 데이터를 서버에서 불러오는 핵심 함수
     async function loadData() {
         if (!pw) { alert("비밀번호가 필요합니다."); window.close(); return; }
 
         try {
-            // 1. 신고 로드
+            // 1. 신고 목록
             const repRes = await fetch(`/api/admin/reports?pw=${pw}`);
             const reports = await repRes.json();
             document.getElementById('stat-reports').innerText = reports.length;
-            const repBody = document.querySelector('#reportTable tbody');
-            repBody.innerHTML = reports.map(r => `
+            document.querySelector('#reportTable tbody').innerHTML = reports.map(r => `
                 <tr>
                     <td><b>${r.targetNick}</b> (${r.targetId})</td>
                     <td><span class="badge-ip">${r.targetIp}</span></td>
@@ -154,12 +138,11 @@
                 </tr>
             `).join('');
 
-            // 2. 밴 목록 로드
+            // 2. 밴 목록
             const banRes = await fetch(`/api/admin/bans?pw=${pw}`);
             const bans = await banRes.json();
             document.getElementById('stat-bans').innerText = bans.length;
-            const banBody = document.querySelector('#banTable tbody');
-            banBody.innerHTML = bans.map(b => `
+            document.querySelector('#banTable tbody').innerHTML = bans.map(b => `
                 <tr>
                     <td>${b.nick || 'Unknown'}</td>
                     <td><span class="badge-ip">${b.ip}</span></td>
@@ -168,30 +151,32 @@
                 </tr>
             `).join('');
 
-            // 3. 뮤트 목록 로드 (서버 API 확인 필요)
+            // 3. 뮤트 목록
             const muteRes = await fetch(`/api/admin/mutes?pw=${pw}`);
-            if (muteRes.ok) {
-                const mutes = await muteRes.json();
-                const muteBody = document.querySelector('#muteTable tbody');
-                muteBody.innerHTML = Object.keys(mutes).map(id => `
+            const mutes = await muteRes.json();
+            const muteBody = document.querySelector('#muteTable tbody');
+            
+            if (mutes.length === 0) {
+                muteBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#666;">현재 뮤트된 유저가 없습니다.</td></tr>';
+            } else {
+                muteBody.innerHTML = mutes.map(m => `
                     <tr>
-                        <td>${id}</td>
-                        <td style="color:#e74c3c;">MUTED</td>
-                        <td><button class="btn-unban" onclick="unmute('${id}')">뮤트 해제</button></td>
+                        <td><b>${m.nick}</b> (${m.id})</td>
+                        <td><span style="color:#e74c3c; font-weight:bold;">MUTED</span></td>
+                        <td><button class="btn-unban" onclick="unmute('${m.id}')">뮤트 해제</button></td>
                     </tr>
                 `).join('');
-                if(Object.keys(mutes).length === 0) {
-                    muteBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#666;">뮤트 중인 유저가 없습니다.</td></tr>';
-                }
             }
-
+            document.getElementById('server-status').innerText = "ONLINE";
+            document.getElementById('server-status').style.color = "#2ecc71";
         } catch (e) {
             document.getElementById('server-status').innerText = "OFFLINE";
             document.getElementById('server-status').style.color = "#e74c3c";
         }
     }
 
-    // 수동 차단 실행
+    // --- 관리자 액션 함수들 (함수 밖으로 분리) ---
+
     async function manualBan() {
         const ip = document.getElementById('manualIp').value.trim();
         const nick = document.getElementById('manualNick').value.trim();
@@ -206,7 +191,6 @@
         if(res.ok) { alert("수동 차단 완료"); loadData(); }
     }
 
-    // 신고 내역에서 바로 밴 (사유 입력 팝업)
     async function quickBan(ip, id, nick) {
         const reason = prompt(`${nick} 님의 차단 사유를 입력하세요`, "운영 정책 위반");
         if(reason) {
@@ -234,14 +218,18 @@
     }
 
     async function unmute(userId) {
-        if(confirm(`${userId}의 뮤트를 해제하시겠습니까?`)) {
+        if(confirm(`${userId} 유저의 뮤트를 해제하시겠습니까?`)) {
             const res = await fetch(`/api/admin/mute/${userId}?pw=${pw}`, { method: 'DELETE' });
-            if(res.ok) loadData();
+            if(res.ok) {
+                alert("뮤트가 해제되었습니다.");
+                loadData();
+            }
         }
     }
 
+    // 초기 실행 및 타이머 설정
     loadData();
-    setInterval(loadData, 10000); // 10초마다 자동 갱신
+    setInterval(loadData, 10000); 
 </script>
 </body>
 </html>

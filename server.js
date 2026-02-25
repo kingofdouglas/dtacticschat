@@ -134,7 +134,18 @@ io.on('connection', async (socket) => {
         if (chatHistory.length > 0) socket.emit('chat history', chatHistory);
         io.emit('user list', getUserListWithAdminStatus());
     });
+    
+socket.on('admin auth', () => { 
+    isAdmin = true; 
+    // 전송 버튼 옆 톱니바퀴 버튼 노출
+    document.getElementById('btn-go-admin').style.display = 'inline-block';
+});
 
+// 어드민 버튼 클릭 시 이동
+document.getElementById('btn-go-admin').onclick = () => {
+    const pw = prompt("관리자 비밀번호를 입력하세요.");
+    if(pw) location.href = `/admin?pw=${pw}`;
+};
     // C. 일반 채팅 (게스트/뮤트 체크 포함)
     socket.on('chat message', (data) => {
         if (data.user.id === 'guest') {

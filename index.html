@@ -7,13 +7,13 @@
         #wrapper { display: flex; width: 100%; height: 100%; position: relative; }
         #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #1f1f1f; }
         
-        /* 채팅창 스크롤 및 메시지 디자인 */
+        /* 채팅 스크롤 및 메시지 */
         #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 13px; color: #ddd; }
         #messages li { padding: 3px 4px; margin-bottom: 0; word-break: break-all; border-radius: 0; transition: background-color 0.1s; position: relative; } 
-        /* ★ 복구 1. 마우스 올렸을 때 살짝 밝아지는 효과 */
         #messages li:hover { background-color: #3d3d3d; }
-        
         .my-message-bg { background-color: #242424; }
+        
+        /* 닉네임, 아이콘, 텍스트 */
         .user-icon { width: 12px; height: 12px; margin-right: 3px; vertical-align: middle; border-radius: 2px; }
         .my-nickname { color: #5dade2; font-weight: bold; }   
         .other-nickname { color: #dfdfdf; font-weight: bold; } 
@@ -22,7 +22,7 @@
         .clickable-nick { cursor: pointer; }
         .whisper-msg { color: #ff9ff3; font-weight: bold; }
 
-        /* 하단 입력창 */
+        /* 하단 폼 영역 */
         #form { display: flex; padding: 0 4px; background: #3a3a3a; align-items: center; height: 30px; }
         #emo-toggle-btn { width: 26px; height: 100%; background: transparent; border: none; color: #aaa; cursor: pointer; font-size: 18px; }
         #input { flex: 1; padding: 0 4px; background: transparent; border: none; color: #eee; height: 100%; font-size: 13px; outline: none; }
@@ -35,18 +35,22 @@
         #emo-pagination { display: flex; justify-content: space-between; align-items: center; padding: 2px 5px; background: #222; font-size: 10px; color: #ccc; }
         #emo-pagination button { background: #444; border: none; color: #fff; cursor: pointer; padding: 0 4px; }
 
-        /* 상태창(유저 팝업) */
+        /* 유저 클릭 팝업 */
         #user-popup { position: absolute; background: rgba(35,35,35,0.98); border: 1px solid #444; display: none; flex-direction: column; z-index: 101; min-width: 90px; }
         #user-popup button { background: transparent; color: #eee; border: none; padding: 7px 10px; font-size: 12px; cursor: pointer; text-align: left; }
         #user-popup button:hover { background: #4a90e2; }
         .admin-btn { display: none; }
 
-        /* 우측 유저 목록 */
-        #user-list-container { width: 150px; display: flex; flex-direction: column; background: #2e2e2e; }
+        /* ★ 접속자 목록 컨테이너 (스크롤 복구됨) */
+        #user-list-container { width: 160px; display: flex; flex-direction: column; background: #2e2e2e; }
+        
+        /* ★ [신규] 접속자 헤더 디자인 */
+        #user-count-header { padding: 6px; font-size: 12px; color: #aaa; background: #252525; border-bottom: 1px solid #1f1f1f; text-align: center; font-weight: bold; }
+        
         #users { flex: 1; overflow-y: auto; list-style: none; padding: 5px; margin: 0; font-size: 12px; color: #ddd; }
         #users li { padding: 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; }
 
-        /* ★ 복구 2. 시간 표시 툴팁 디자인 */
+        /* 툴팁 */
         #time-tooltip { position: absolute; background: rgba(0, 0, 0, 0.85); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; z-index: 9999; display: none; white-space: nowrap; box-shadow: 1px 1px 3px rgba(0,0,0,0.5); }
 
         ::-webkit-scrollbar { width: 4px; }
@@ -79,6 +83,7 @@
             </form>
         </div>
         <div id="user-list-container">
+            <div id="user-count-header">👤 <span id="user-count-num">0</span>명</div>
             <ul id="users"></ul>
         </div>
     </div>
@@ -114,33 +119,33 @@
         const timeTooltip = document.getElementById('time-tooltip');
         let selectedUser = { nick: '', id: '' };
 
+        // ★ [링크 변환 함수] XSS 방지 및 URL 하이퍼링크 처리
         function parseChatText(text) {
-        // 1. 악성 스크립트 실행 방지 (HTML 태그 무력화)
-        let safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        
-        // 2. http:// 또는 https:// 로 시작하는 문자열을 찾아 새 탭 링크(<a>)로 변환
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        return safeText.replace(urlRegex, function(url) {
-            return `<a href="${url}" target="_blank" style="color: #5dade2; text-decoration: underline;">${url}</a>`;
-        });
+            let safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            return safeText.replace(urlRegex, function(url) {
+                return `<a href="${url}" target="_blank" style="color: #5dade2; text-decoration: underline;">${url}</a>`;
+            });
         }
-            
+
         function displayMessage(data, isWhisper = false, whisperPrefix = "") {
             const item = document.createElement('li');
             if (data.user.nick === myNick) item.classList.add('my-message-bg');
 
-            // ★ 툴팁을 위해 데이터 기록 (빼먹었던 부분 복구)
             item.setAttribute('data-time', data.timestamp || Date.now());
             item.setAttribute('data-nick', data.user.nick);
 
             const iconHtml = data.user.icon ? `<img src="${fixPath(data.user.icon)}" class="user-icon" onerror="this.style.display='none'">` : '';
             const nickClass = (data.user.nick === myNick) ? 'my-nickname' : 'other-nickname';
+            
+            // ★ 이미지면 그대로, 텍스트면 링크 변환 함수 적용
             let contentHtml = '';
             if (data.type === 'image') {
                 contentHtml = `<img src="${data.content}" class="chat-emoticon">`;
             } else {
                 contentHtml = `<span class="msg-text">${parseChatText(data.content)}</span>`;
             }
+
             item.innerHTML = isWhisper 
                 ? `<span class="whisper-msg">${whisperPrefix}</span> <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> ${contentHtml}`
                 : `${iconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> ${contentHtml}`;
@@ -175,9 +180,14 @@
         socket.on('clear chat', () => { messages.innerHTML = ''; });
         socket.on('disconnect', () => { setTimeout(() => location.reload(), 2000); });
 
+        // 유저 목록 갱신
         socket.on('user list', (users) => {
             const list = document.getElementById('users');
             list.innerHTML = '';
+            
+            // ★ [신규] 접속자 숫자 갱신
+            document.getElementById('user-count-num').innerText = users.length;
+            
             users.sort((a, b) => {
                 if (a.isAdmin && !b.isAdmin) return -1;
                 if (!a.isAdmin && b.isAdmin) return 1;
@@ -206,8 +216,9 @@
             emoPicker.style.display = 'none';
         };
 
-        // ★ 복구 3. 팝업 위치 정밀하게 스마트 전환
+        // ★ [신규] 빈 공간 클릭 시 이모티콘 창 & 팝업 닫기
         document.addEventListener('click', (e) => {
+            // 1. 유저 닉네임 팝업 제어
             if (e.target.classList.contains('clickable-nick')) {
                 const nick = e.target.getAttribute('data-nick');
                 if (nick === myNick) return;
@@ -224,28 +235,28 @@
                     document.getElementById('btn-clear').style.display = 'block';
                 }
                 
-                // 디스플레이를 켜야 크기(offsetWidth)를 읽을 수 있음
                 userPopup.style.display = 'flex';
-                
-                // 마우스 클릭 위치 바로 우측 하단 기준
                 let x = e.pageX + 10;
                 let y = e.pageY + 10;
-                
                 const popW = userPopup.offsetWidth;
                 const popH = userPopup.offsetHeight;
 
-                // 짤림 방지: 화면 우측/하단을 넘어가면 반대쪽(좌측/상단)으로 뒤집기
                 if (x + popW > window.innerWidth) x = e.pageX - popW - 10;
                 if (y + popH > window.innerHeight) y = e.pageY - popH - 10;
-
                 userPopup.style.left = x + 'px';
                 userPopup.style.top = y + 'px';
             } else if (!userPopup.contains(e.target)) {
-                userPopup.style.display = 'none';
+                userPopup.style.display = 'none'; // 팝업 밖을 누르면 팝업 닫기
+            }
+
+            // 2. 이모티콘 창 제어 (+버튼과 창 내부를 제외한 곳 클릭 시 닫기)
+            const toggleBtn = document.getElementById('emo-toggle-btn');
+            if (!emoPicker.contains(e.target) && e.target !== toggleBtn) {
+                emoPicker.style.display = 'none';
             }
         });
 
-        // ★ 복구 4. 채팅 시간 툴팁 이벤트 로직 (0.7초)
+        // 시간 툴팁
         function formatTimeDiff(timestamp) {
             const diffMins = Math.floor((Date.now() - timestamp) / 60000);
             if (diffMins < 1) return '방금 전';
@@ -286,7 +297,7 @@
                     timeTooltip.innerText = `${sendNick} ${timeStr}`;
                     timeTooltip.style.display = 'block';
                     updateTooltipPosition(); 
-                }, 700); // 0.7초 대기
+                }, 700);
             }
         });
 
@@ -297,7 +308,7 @@
             }
         });
 
-        // 이모티콘 및 버튼 로직
+        // 이모티콘 렌더링
         let emos = []; let pg = 1;
         const drawEmos = () => {
             const list = document.getElementById('emo-list');
@@ -308,13 +319,13 @@
                 img.onclick = () => { socket.emit('chat message', { type:'image', user:myInfo, content:img.src }); emoPicker.style.display='none'; };
                 list.appendChild(img);
             });
-            document.getElementById('emo-page-info').innerText = `${pg}/${Math.ceil(emos.length/10)}`;
+            document.getElementById('emo-page-info').innerText = `${pg}/${Math.ceil(emos.length/10) || 1}`;
         };
 
         fetch('/api/emoticons').then(r => r.json()).then(f => { emos = f; drawEmos(); });
         document.getElementById('emo-toggle-btn').onclick = () => emoPicker.style.display = (emoPicker.style.display==='flex'?'none':'flex');
         document.getElementById('emo-prev').onclick = () => { if(pg>1){ pg--; drawEmos(); } };
-        document.getElementById('emo-next').onclick = () => { if(pg < emos.length/10){ pg++; drawEmos(); } };
+        document.getElementById('emo-next').onclick = () => { if(pg < Math.ceil(emos.length/10)){ pg++; drawEmos(); } };
 
         document.getElementById('btn-whisper').onclick = () => { input.value = `/w ${selectedUser.nick} `; input.focus(); userPopup.style.display='none'; };
         
@@ -340,6 +351,3 @@
     </script>
 </body>
 </html>
-
-
-

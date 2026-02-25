@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Dtactics Chat</title>
+    <title>웹게임 채팅창</title>
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #2e2e2e; font-family: 'Malgun Gothic', '맑은 고딕', dotum, sans-serif; box-sizing: border-box; }
         *, *:before, *:after { box-sizing: inherit; }
@@ -9,15 +9,16 @@
         #wrapper { display: flex; width: 100%; height: 100%; background: #2e2e2e; position: relative; }
         #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #1f1f1f; }
         
-        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 12px; line-height: 1.25; color: #ddd; }
+        /* ==== [수정] 폰트 크기 13px로 확대 및 간격 조정 ==== */
+        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 13px; line-height: 1.3; color: #ddd; }
         
-        /* ==== [핵심 수정] margin-bottom 0으로 간격 제거, border-radius 0으로 둥근 모서리 제거 ==== */
-        #messages li { padding: 2px 4px; margin-bottom: 0; word-break: break-all; border-radius: 0; transition: background-color 0.1s; position: relative; } 
+        /* ==== [수정] 칸칸이 딱딱 붙도록 margin/radius 제거 ==== */
+        #messages li { padding: 3px 4px; margin-bottom: 0; word-break: break-all; border-radius: 0; transition: background-color 0.1s; position: relative; } 
         #messages li:hover { background-color: #3d3d3d; }
         
         .my-message-bg { background-color: #242424; }
         
-        .user-icon { width: 11px; height: 11px; margin-right: 3px; vertical-align: text-bottom; border-radius: 2px; }
+        .user-icon { width: 12px; height: 12px; margin-right: 3px; vertical-align: middle; border-radius: 2px; }
         .my-nickname, .other-nickname, .msg-text, .clickable-nick, .whisper-msg { vertical-align: baseline; }
         
         .my-nickname { color: #5dade2; font-weight: bold; }   
@@ -28,19 +29,19 @@
         .clickable-nick { cursor: pointer; }
         .clickable-nick:hover { color: #fff; } 
         
-        .system-msg { color: #f39c12; font-weight: bold; font-size: 12px; }
+        .system-msg { color: #f39c12; font-weight: bold; font-size: 13px; }
         .whisper-msg { color: #ff9ff3; font-weight: bold; }
 
-        #form { display: flex; padding: 0 4px; background: #3a3a3a; align-items: center; height: 28px; border: none; }
-        #emo-toggle-btn { width: 24px; height: 100%; background: transparent; border: none; color: #aaa; cursor: pointer; font-weight: bold; font-size: 16px; padding: 0; display: flex; align-items: center; justify-content: center; }
+        #form { display: flex; padding: 0 4px; background: #3a3a3a; align-items: center; height: 30px; border: none; }
+        #emo-toggle-btn { width: 26px; height: 100%; background: transparent; border: none; color: #aaa; cursor: pointer; font-weight: bold; font-size: 18px; padding: 0; display: flex; align-items: center; justify-content: center; }
         #emo-toggle-btn:hover { color: #fff; }
         
-        #input { flex: 1; padding: 0 4px; background: transparent; border: none; color: #eee; height: 100%; font-size: 12px; outline: none; }
+        #input { flex: 1; padding: 0 4px; background: transparent; border: none; color: #eee; height: 100%; font-size: 13px; outline: none; }
         #input::placeholder { color: #888; font-weight: bold; } 
-        #form button[type="submit"] { padding: 0 8px; height: 100%; background: transparent; color: #999; border: none; cursor: pointer; font-size: 12px; font-weight: bold; }
+        #form button[type="submit"] { padding: 0 8px; height: 100%; background: transparent; color: #999; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
         #form button[type="submit"]:hover { color: #fff; }
 
-        #emo-picker { position: absolute; bottom: 32px; left: 2px; width: 210px; background: #333; border: 1px solid #111; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); padding: 5px; display: none; flex-direction: column; z-index: 100; }
+        #emo-picker { position: absolute; bottom: 34px; left: 2px; width: 210px; background: #333; border: 1px solid #111; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); padding: 5px; display: none; flex-direction: column; z-index: 100; }
         #emo-list { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-start; min-height: 80px; align-content: flex-start; }
         #emo-list img { width: 36px; height: 36px; cursor: pointer; border: 1px solid transparent; }
         #emo-list img:hover { border-color: #5dade2; background: #444; }
@@ -49,17 +50,15 @@
         #emo-pagination button:disabled { color: #666; border-color: #333; cursor: not-allowed; background-color: transparent; }
 
         #user-popup { position: absolute; background: #333; border: 1px solid #111; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); padding: 5px; display: none; flex-direction: column; z-index: 101; width: 120px; }
-        .up-header { font-size: 12px; color: #5dade2; font-weight: bold; text-align: center; margin-bottom: 4px; border-bottom: 1px solid #444; padding-bottom: 2px; }
-        #user-popup button { background: #444; color: #eee; border: 1px solid #222; margin: 2px 0; padding: 4px; font-size: 11px; cursor: pointer; }
+        .up-header { font-size: 13px; color: #5dade2; font-weight: bold; text-align: center; margin-bottom: 4px; border-bottom: 1px solid #444; padding-bottom: 2px; }
+        #user-popup button { background: #444; color: #eee; border: 1px solid #222; margin: 2px 0; padding: 4px; font-size: 12px; cursor: pointer; }
         #user-popup button:hover { background: #555; }
         .admin-btn { display: none; } 
 
         #user-list-container { width: 130px; display: flex; flex-direction: column; background: #2e2e2e; }
-        #user-list-header { display: none; } 
-        
-        #users { flex: 1; overflow-y: auto; margin: 0; padding: 5px; list-style-type: none; font-size: 12px; color: #ddd; }
-        #users li { padding: 3px 2px; display: flex; align-items: center; justify-content: flex-start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .admin-crown { font-size: 11px; margin-right: 3px; }
+        #users { flex: 1; overflow-y: auto; margin: 0; padding: 5px; list-style-type: none; font-size: 13px; color: #ddd; }
+        #users li { padding: 4px 2px; display: flex; align-items: center; justify-content: flex-start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .admin-crown { font-size: 12px; margin-right: 3px; }
 
         #time-tooltip {
             position: absolute;
@@ -107,7 +106,6 @@
             </form>
         </div>
         <div id="user-list-container">
-            <div id="user-list-header">접속자</div>
             <ul id="users"></ul>
         </div>
     </div>
@@ -124,27 +122,23 @@
         
         let myIcon = urlParams.get('icon') || urlParams.get('con') || '';
 
-        // ==== [업그레이드] 부모 페이지의 폴더 경로까지 계산하여 매핑 ====
+        // ==== [업그레이드] 부모 경로(/dt/)까지 포함한 완벽한 아이콘 경로 계산 ====
         if (myIcon.startsWith('.') || myIcon.startsWith('/')) {
             if (document.referrer) {
                 try {
-                    // URL 객체를 사용하면 상대경로(./)를 부모 주소 기준으로 완벽하게 계산해줍니다.
-                    // 예: 부모가 http://forceofd.org/dt/index.php 이고 아이콘이 ./img/a.gif 면
-                    // 결과값은 http://forceofd.org/dt/img/a.gif 가 됩니다.
+                    // URL 객체가 부모 페이지 주소를 기준으로 상대경로를 절대경로로 바꿔줍니다.
                     myIcon = new URL(myIcon, document.referrer).href;
-                } catch(e) { 
-                    console.error('아이콘 주소 변환 에러:', e); 
-                }
+                } catch(e) { console.error('아이콘 주소 변환 에러:', e); }
             } else {
-                // 부모 주소를 못 가져올 경우를 대비한 수동 설정 (여기에 정확한 경로를 입력해두면 안전합니다)
-                const FIXED_DOMAIN = 'http://forceofd.org/dt/'; 
-                myIcon = FIXED_DOMAIN + myIcon.replace(/^\.\//, ''); 
+                // 부모 주소를 알 수 없을 때를 대비한 백업용
+                const FALLBACK_DOMAIN = 'http://forceofd.org/dt/'; 
+                myIcon = FALLBACK_DOMAIN + myIcon.replace(/^\.\//, ''); 
             }
         }
 
         const myInfo = { nick: myNick, id: myId, icon: myIcon };
 
-        // ★ 관리자 ID 등록 (배열)
+        // ★ 관리자 ID 목록
         const ADMIN_IDS = ['pr123', 'beesa']; 
         const isAdmin = ADMIN_IDS.includes(myInfo.id);
 
@@ -396,5 +390,3 @@
     </script>
 </body>
 </html>
-
-

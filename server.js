@@ -6,20 +6,21 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 
-// 1. 미들웨어 설정 (순서 중요!)
+// 1. 미들웨어 설정
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 2. 환경 변수 및 DB 연결
+// 2. 환경 변수 및 보안 설정
 const adminEnv = process.env.ADMIN_IDS || '';
 const ADMIN_IDS = adminEnv ? adminEnv.split(',').map(id => id.trim()) : [];
 const ADMIN_PW = process.env.ADMIN_PASSWORD || '1234';
 
+// 3. MongoDB 연결
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('✅ DB 연결 성공'))
     .catch(err => console.error('❌ DB 연결 실패:', err));
 
-// DB 모델
+// DB 스키마 정의
 const Report = mongoose.model('Report', new mongoose.Schema({
     targetNick: String, targetId: String, targetIp: String,
     reporter: String, date: { type: Date, default: Date.now }
@@ -30,12 +31,19 @@ const Ban = mongoose.model('Ban', new mongoose.Schema({
     reason: String, date: { type: Date, default: Date.now }
 }));
 
-// 3. 변수 관리
+// 4. 서버 내부 변수
 let chatHistory = [];
 const connectedUsers = {};
-const mutedIds = new Set(); // 서버 메모리에 유지 (재시작 시 초기화됨)
+const mutedIds = new Set(); // Mute는 서버 메모리에서 관리 (서버 재시작 시 초기화)
 
-// 4. 보안 미들웨어
+// 5. 유틸리티 함수
+const getUserListWithAdminStatus = () => {
+    return Object.values(connectedUsers).map(u => ({
+        ...u, isAdmin: ADMIN_IDS.includes(u.id)
+    }));
+};
+
+// 6. 보안 미들웨어 (관리자 API용)
 const adminAuth = (req, res, next) => {
     const clientPw = req.query.pw || req.body.pw;
     if (clientPw === ADMIN_PW) {
@@ -45,12 +53,15 @@ const adminAuth = (req, res, next) => {
     }
 };
 
-// 5. API 및 라우팅
+// ------------------------------------------------------------------
+// 7. HTTP 경로 (Route) 설정
+// ------------------------------------------------------------------
+
 app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
 
+// 관리자 페이지 접속 (비밀번호 확인 루프 포함)
 app.get('/admin', (req, res) => {
-    const clientPw = req.query.pw;
-    if (clientPw === ADMIN_PW) {
+    if (req.query.pw === ADMIN_PW) {
         res.sendFile(path.join(__dirname, 'public', 'admin.html'));
     } else {
         res.status(403).send(`
@@ -63,7 +74,7 @@ app.get('/admin', (req, res) => {
     }
 });
 
-// 관리자용 데이터 API (보안 적용)
+// 관리자 API 전용
 app.get('/api/admin/reports', adminAuth, async (req, res) => {
     const reports = await Report.find().sort({ date: -1 });
     res.json(reports);
@@ -72,11 +83,6 @@ app.get('/api/admin/reports', adminAuth, async (req, res) => {
 app.get('/api/admin/bans', adminAuth, async (req, res) => {
     const bans = await Ban.find().sort({ date: -1 });
     res.json(bans);
-});
-
-// Mute 목록 확인 API 추가
-app.get('/api/admin/mutes', adminAuth, (req, res) => {
-    res.json(Array.from(mutedIds)); 
 });
 
 app.post('/api/admin/ban', adminAuth, async (req, res) => {
@@ -90,6 +96,7 @@ app.delete('/api/admin/ban/:id', adminAuth, async (req, res) => {
     res.json({ success: true });
 });
 
+// 이모티콘 목록 불러오기
 app.get('/api/emoticons', (req, res) => {
     const emoticonsDir = path.join(__dirname, 'public', 'emoticons');
     fs.readdir(emoticonsDir, (err, files) => {
@@ -99,17 +106,14 @@ app.get('/api/emoticons', (req, res) => {
     });
 });
 
-// 6. 소켓 로직
-const getUserListWithAdminStatus = () => {
-    return Object.values(connectedUsers).map(u => ({
-        ...u, isAdmin: ADMIN_IDS.includes(u.id)
-    }));
-};
+// ------------------------------------------------------------------
+// 8. 실시간 소켓 로직 (Socket.io)
+// ------------------------------------------------------------------
 
 io.on('connection', async (socket) => {
     const clientIp = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
 
-    // 접속 시 IP 차단 체크
+    // A. 접속 시 즉시 IP 차단 체크
     try {
         const isBanned = await Ban.findOne({ ip: clientIp });
         if (isBanned) {
@@ -118,57 +122,102 @@ io.on('connection', async (socket) => {
         }
     } catch (err) { console.error("Ban check error:", err); }
 
+    // B. 유저 입장
     socket.on('join', (userData) => {
         socket.user = userData;
         connectedUsers[socket.id] = userData;
-        if (ADMIN_IDS.includes(userData.id)) socket.emit('admin auth', true);
+        
+        if (ADMIN_IDS.includes(userData.id)) {
+            socket.emit('admin auth', true);
+        }
+
         if (chatHistory.length > 0) socket.emit('chat history', chatHistory);
         io.emit('user list', getUserListWithAdminStatus());
     });
 
+    // C. 일반 채팅 (게스트/뮤트 체크 포함)
     socket.on('chat message', (data) => {
-        if (data.user.id === 'guest') return socket.emit('system message', '게스트는 채팅을 할 수 없습니다.');
-        
-        // Mute 체크
+        if (data.user.id === 'guest') {
+            return socket.emit('system message', '게스트는 채팅을 할 수 없습니다.');
+        }
+
         if (mutedIds.has(data.user.id)) {
             return socket.emit('system message', '관리자에 의해 채팅이 금지된 상태입니다.');
         }
 
-        const msgData = { ...data, timestamp: Date.now() };
+        const msgData = { 
+            type: data.type, 
+            user: data.user, 
+            content: data.content, 
+            timestamp: Date.now() 
+        };
+        
         chatHistory.push(msgData);
         if (chatHistory.length > 30) chatHistory.shift();
         io.emit('chat message', msgData);
     });
 
+    // D. 신고 접수 (DB 저장)
     socket.on('report user', async (target) => {
         const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === target.id);
         const targetIp = targetSocket ? (targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address) : 'Unknown';
 
-        await Report.create({
+        const newReport = new Report({
             targetNick: target.nick,
             targetId: target.id,
             targetIp: targetIp,
             reporter: socket.user ? socket.user.nick : 'Unknown'
         });
-        socket.emit('system message', `[알림] ${target.nick}님 신고가 접수되었습니다.`);
+        await newReport.save();
+        socket.emit('system message', `[알림] ${target.nick}님에 대한 신고가 접수되었습니다.`);
     });
 
-    // 관리자 전용 실시간 제어 (Mute 등)
+    // E. 귓속말
+    socket.on('whisper', (data) => {
+        let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
+        if (targetSocketId) {
+            const whisperData = { ...data, timestamp: Date.now() };
+            io.to(targetSocketId).emit('whisper', whisperData);
+            socket.emit('whisper', whisperData); 
+        } else {
+            socket.emit('system message', '현재 접속해 있지 않은 유저입니다.');
+        }
+    });
+
+    // F. 호출
+    socket.on('call user', (data) => {
+        let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('call alert', { sender: data.sender });
+            socket.emit('system message', `[안내] ${data.targetNick}님을 호출했습니다.`);
+        } else {
+            socket.emit('system message', '[안내] 접속 중인 유저가 아닙니다.');
+        }
+    });
+
+    // G. 관리자 전용 제어 (Mute, Clear)
     socket.on('mute user', (targetId) => {
         if (ADMIN_IDS.includes(socket.user?.id)) {
             mutedIds.add(targetId);
-            io.emit('system message', `알림: 일부 사용자의 채팅이 제한되었습니다.`);
+            socket.emit('system message', `[관리] 해당 유저(${targetId})를 뮤트했습니다.`);
         }
     });
 
     socket.on('unmute user', (targetId) => {
         if (ADMIN_IDS.includes(socket.user?.id)) {
             mutedIds.delete(targetId);
+            socket.emit('system message', `[관리] 해당 유저의 뮤트를 해제했습니다.`);
         }
     });
 
-    // ... (귓속말, 호출, clear chat 등 나머지 기존 소켓 코드는 여기에 그대로 유지)
+    socket.on('clear chat', () => {
+        if (ADMIN_IDS.includes(socket.user?.id)) {
+            chatHistory = [];
+            io.emit('clear chat');
+        }
+    });
 
+    // H. 접속 종료
     socket.on('disconnect', () => {
         if (connectedUsers[socket.id]) {
             delete connectedUsers[socket.id];
@@ -177,5 +226,6 @@ io.on('connection', async (socket) => {
     });
 });
 
+// 서버 실행
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => { console.log(`서버 실행 중: ${PORT}`); });
+http.listen(PORT, () => { console.log(`🚀 서버 실행 중: ${PORT}`); });

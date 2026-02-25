@@ -13,7 +13,6 @@
         #messages li { padding: 2px 4px; margin-bottom: 2px; word-break: break-all; border-radius: 4px; transition: background-color 0.1s; position: relative; } 
         #messages li:hover { background-color: #3d3d3d; }
         
-        /* ==== [신규] 내 채팅 배경색을 살짝 더 진하게 (#242424) ==== */
         .my-message-bg { background-color: #242424; }
         
         .user-icon { width: 11px; height: 11px; margin-right: 3px; vertical-align: text-bottom; border-radius: 2px; }
@@ -123,16 +122,12 @@
         
         let myIcon = urlParams.get('icon') || urlParams.get('con') || '';
 
-        // ==== [핵심 수정] 부모 URL을 감지하여 마법처럼 절대경로로 바꿔주는 로직 ====
         if (myIcon.startsWith('.') || myIcon.startsWith('/')) {
-            // document.referrer 는 이 iframe을 불러온 부모 사이트의 주소입니다.
             if (document.referrer) {
                 try {
-                    // 부모 주소(예: http://게임.com/game/main.php)를 기준으로 ./img/... 를 해석합니다!
                     myIcon = new URL(myIcon, document.referrer).href;
                 } catch(e) { console.error('아이콘 주소 변환 에러:', e); }
             } else {
-                // 만약 브라우저 보안 때문에 부모 주소를 못 가져올 경우를 대비한 최후의 보루 (여기에만 웹게임 주소 입력)
                 const FALLBACK_DOMAIN = 'http://여기에본인웹게임주소입력.com'; 
                 myIcon = FALLBACK_DOMAIN + myIcon.replace(/^\./, ''); 
             }
@@ -140,7 +135,7 @@
 
         const myInfo = { nick: myNick, id: myId, icon: myIcon };
 
-        // ★ 관리자 ID 등록 (배열)
+        // ★ 관리자 ID 등록
         const ADMIN_IDS = ['master', 'admin2']; 
         const isAdmin = ADMIN_IDS.includes(myInfo.id);
 
@@ -336,7 +331,6 @@
             const prefix = isMe ? `[귓속말 -> ${data.targetNick}]` : `[귓속말 <- ${data.user.nick}]`;
             const nickClass = isMe ? 'my-nickname' : 'other-nickname';
 
-            // [신규] 내가 보낸 귓속말에도 어두운 배경 클래스 추가
             if (isMe) item.classList.add('my-message-bg');
 
             item.setAttribute('data-time', Date.now());
@@ -350,17 +344,21 @@
         socket.on('chat message', function(data) {
             const item = document.createElement('li');
             const userIconHtml = data.user.icon ? `<img src="${data.user.icon}" class="user-icon">` : '';
+            
+            // [바로 이 부분의 오타가 수정되었습니다!]
             let messageContent = data.type === 'image' ? `<img src="${data.content}" class="chat-emoticon">` : `<span class="msg-text">${data.content}</span>`;
+            
             const isMe = (data.user.nick === myInfo.nick);
             const nickClass = isMe ? 'my-nickname' : 'other-nickname';
 
-            // [신규] 내가 친 채팅이면 어두운 배경 클래스 추가
             if (isMe) item.classList.add('my-message-bg');
 
             item.setAttribute('data-time', Date.now());
             item.setAttribute('data-nick', data.user.nick);
 
-            item.innerHTML = `${userIconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> <span class="msg-text">${data.content}</span>`;
+            // [오타 수정] <span class="msg-text">${data.content}</span> 대신 ${messageContent} 로 복구!
+            item.innerHTML = `${userIconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> &nbsp;${messageContent}`;
+            
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         });

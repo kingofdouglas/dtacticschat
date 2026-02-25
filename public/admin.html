@@ -116,6 +116,23 @@
     const urlParams = new URLSearchParams(window.location.search);
     const pw = urlParams.get('pw');
 
+
+    // admin.html의 <script> 상단에 추가
+        window.onload = function() {
+            const params = new URLSearchParams(window.location.search);
+            const banIp = params.get('banIp');
+            const banNick = params.get('banNick');
+            
+            if (banIp) {
+                document.getElementById('manualIp').value = banIp;
+            }
+            if (banNick) {
+                document.getElementById('manualNick').value = banNick;
+            }
+            if (banIp || banNick) {
+                document.getElementById('manualReason').focus(); // 사유 입력창으로 커서 이동
+            }
+        }
     // 데이터를 서버에서 불러오는 핵심 함수
     async function loadData() {
         if (!pw) { alert("비밀번호가 필요합니다."); window.close(); return; }

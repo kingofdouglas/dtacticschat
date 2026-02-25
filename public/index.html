@@ -153,14 +153,27 @@
         const userPopup = document.getElementById('user-popup');
         const emoPicker = document.getElementById('emo-picker');
         const timeTooltip = document.getElementById('time-tooltip');
-
+        
+        // 뮤트 실행 함수 예시
+        function muteUser(id, nick) {
+            // 서버가 객체를 원하므로 객체로 보냅니다.
+            socket.emit('mute user', { id: id, nick: nick });
+        }
         // [1] 메시지 표시 로직
         function parseChatText(text) {
             let safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
             const urlRegex = /(https?:\/\/[^\s]+)/g;
             return safeText.replace(urlRegex, (url) => `<a href="${url}" target="_blank" style="color: #5dade2; text-decoration: underline;">${url}</a>`);
         }
-
+        function openAdminBan(ip, id, nick) {
+            // 관리자 비번을 알고 있다면 파라미터에 비번까지 포함 가능
+            const adminPw = prompt("관리자 비밀번호를 입력하세요.");
+            if(!adminPw) return;
+        
+            // 정보를 쿼리 스트링으로 전달
+            const url = `/admin?pw=${adminPw}&banIp=${encodeURIComponent(ip)}&banId=${encodeURIComponent(id)}&banNick=${encodeURIComponent(nick)}`;
+            window.open(url, '_blank');
+        }
         function displayMessage(data, isWhisper = false, whisperPrefix = "") {
             const item = document.createElement('li');
             if (data.user.nick === myNick) item.classList.add('my-message-bg');
@@ -402,6 +415,7 @@
     </script>
 </body>
 </html>
+
 
 
 

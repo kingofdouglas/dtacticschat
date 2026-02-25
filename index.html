@@ -3,20 +3,49 @@
 <head>
     <title>웹게임 채팅창</title>
     <style>
+        /* 기존 스타일 유지 */
         body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Malgun Gothic', sans-serif; }
-        /* 전체 500x250 레이아웃: 가로로 분할 (Flex) */
-        #wrapper { display: flex; width: 500px; height: 250px; border: 1px solid #ccc; background: white; }
+        #wrapper { display: flex; width: 500px; height: 250px; border: 1px solid #ccc; background: white; position: relative; /* 팝업 위치 기준점 */ }
         
-        /* 왼쪽 채팅 영역 */
         #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #ccc; }
         #messages { flex: 1; overflow-y: auto; margin: 0; padding: 10px; list-style-type: none; font-size: 13px; }
-        #messages li { padding: 3px 0; border-bottom: 1px dashed #eee; display: flex; align-items: center; }
-        #messages img.icon { width: 16px; height: 16px; margin-right: 5px; } /* 아이콘 크기 */
-        #form { display: flex; padding: 5px; background: #ddd; }
-        #input { flex: 1; padding: 3px; border: 1px solid #ccc; margin-right: 5px;}
-        #form button { padding: 3px 10px; background: #333; color: white; border: none; cursor: pointer; }
+        /* 메시지 높이 정렬 수정 */
+        #messages li { padding: 3px 0; border-bottom: 1px dashed #eee; display: flex; align-items: flex-start; }
+        #messages img.user-icon { width: 16px; height: 16px; margin-right: 5px; margin-top: 2px; }
+        /* [신규] 채팅창에 표시될 이모티콘 크기 (40x40) */
+        #messages img.chat-emoticon { width: 40px; height: 40px; vertical-align: middle; }
 
-        /* 오른쪽 접속자 명단 영역 */
+        /* 하단 입력폼 영역 수정 */
+        #form { display: flex; padding: 5px; background: #ddd; align-items: center; position: relative; }
+        #input { flex: 1; padding: 5px; border: 1px solid #ccc; margin-right: 5px; height: 20px;}
+        
+        /* [신규] + 버튼 스타일 */
+        #emo-toggle-btn { width: 30px; height: 30px; margin-right: 5px; background: #eee; border: 1px solid #ccc; cursor: pointer; font-weight: bold; font-size: 16px; color: #555; }
+        #emo-toggle-btn:hover { background: #ddd; }
+        #form button[type="submit"] { padding: 0 15px; height: 30px; background: #333; color: white; border: none; cursor: pointer; }
+
+        /* [신규] 이모티콘 선택 팝업창 스타일 */
+        #emo-picker {
+            position: absolute;
+            bottom: 40px; /* 입력창 바로 위에 위치 */
+            left: 5px;
+            width: 250px;
+            max-height: 150px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            padding: 10px;
+            display: none; /* 기본적으로 숨김 */
+            flex-wrap: wrap;
+            gap: 5px;
+            z-index: 100;
+        }
+        /* 팝업창 안의 이모티콘 이미지 스타일 */
+        #emo-picker img { width: 35px; height: 35px; cursor: pointer; border: 1px solid transparent; }
+        #emo-picker img:hover { border-color: #007bff; background: #f0f8ff; }
+
+        /* 오른쪽 접속자 명단 (기존 동일) */
         #user-list-container { width: 120px; display: flex; flex-direction: column; background: #fafafa; }
         #user-list-header { padding: 5px; background: #333; color: white; text-align: center; font-size: 12px; font-weight: bold; }
         #users { flex: 1; overflow-y: auto; margin: 0; padding: 10px; list-style-type: none; font-size: 12px; }
@@ -28,9 +57,13 @@
     <div id="wrapper">
         <div id="chat-container">
             <ul id="messages"></ul>
+            
+            <div id="emo-picker"></div>
+
             <form id="form" onsubmit="return false;">
+                <button id="emo-toggle-btn" type="button">+</button>
                 <input id="input" placeholder="메시지 입력..." required autocomplete="off" />
-                <button>전송</button>
+                <button type="submit">전송</button>
             </form>
         </div>
         <div id="user-list-container">
@@ -43,46 +76,95 @@
     <script>
         const socket = io();
         
-        // URL에서 닉네임, 아이디, 아이콘 파라미터 가져오기
+        // URL 파라미터 및 내 정보 설정 (기존 동일)
         const urlParams = new URLSearchParams(window.location.search);
         const myNick = urlParams.get('nick') || 'Guest_' + Math.floor(Math.random() * 1000);
         const myId = urlParams.get('id') || 'guest';
-        const myIcon = urlParams.get('icon') || ''; // 아이콘 주소
-
-        // 내 정보를 하나의 객체로 묶기
+        const myIcon = urlParams.get('icon') || '';
         const myInfo = { nick: myNick, id: myId, icon: myIcon };
 
-        // 접속하자마자 서버에 내 정보 등록 (join 이벤트)
         socket.emit('join', myInfo);
 
+        // DOM 요소 선택
         const form = document.getElementById('form');
         const input = document.getElementById('input');
         const messages = document.getElementById('messages');
         const usersList = document.getElementById('users');
+        const emoToggleBtn = document.getElementById('emo-toggle-btn');
+        const emoPicker = document.getElementById('emo-picker');
 
-        // 메시지 전송
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            if (input.value) {
-                // 내 정보 전체(myInfo)와 메시지를 같이 보냄
-                socket.emit('chat message', { user: myInfo, msg: input.value });
-                input.value = '';
-            }
+        // ================== [신규 기능] 이모티콘 관련 로직 ==================
+
+        // 1. 서버에서 이모티콘 목록 가져와서 팝업창 채우기
+        fetch('/api/emoticons')
+            .then(response => response.json())
+            .then(files => {
+                files.forEach(file => {
+                    const img = document.createElement('img');
+                    img.src = `/emoticons/${file}`; // 정적 파일 경로
+                    // 팝업창의 이미지를 클릭했을 때
+                    img.addEventListener('click', () => {
+                        // 'image' 타입으로 메시지 전송
+                        sendMessage('image', `/emoticons/${file}`);
+                        emoPicker.style.display = 'none'; // 팝업 닫기
+                    });
+                    emoPicker.appendChild(img);
+                });
+            })
+            .catch(err => console.error('이모티콘 목록 로드 실패:', err));
+
+        // 2. + 버튼 클릭 시 팝업창 열고 닫기 (토글)
+        emoToggleBtn.addEventListener('click', () => {
+            emoPicker.style.display = emoPicker.style.display === 'flex' ? 'none' : 'flex';
         });
 
-        // 서버에서 메시지 수신 시 화면에 출력
+        // =================================================================
+
+        // 통합 메시지 전송 함수 (type: 'text' 또는 'image')
+        function sendMessage(type, content) {
+            if (!content) return;
+            // 데이터 구조 변경: type 추가
+            socket.emit('chat message', { 
+                type: type,
+                user: myInfo, 
+                content: content 
+            });
+        }
+
+        // 텍스트 메시지 전송 (엔터 또는 전송 버튼)
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            sendMessage('text', input.value);
+            input.value = '';
+            emoPicker.style.display = 'none'; // 채팅 치면 팝업 닫기
+        });
+
+        // 서버로부터 메시지 수신 시 화면 표시
         socket.on('chat message', function(data) {
             const item = document.createElement('li');
-            // 아이콘이 있으면 이미지 태그 생성, 없으면 빈 칸
-            const iconHtml = data.user.icon ? `<img src="${data.user.icon}" class="icon">` : '';
-            item.innerHTML = `${iconHtml}<b>[${data.user.nick}]</b>&nbsp; ${data.msg}`;
+            const userIconHtml = data.user.icon ? `<img src="${data.user.icon}" class="user-icon">` : '';
+            
+            let messageContent = '';
+            if (data.type === 'image') {
+                // 이미지 메시지인 경우: 40x40 크기의 이미지 태그 출력
+                messageContent = `<img src="${data.content}" class="chat-emoticon">`;
+            } else {
+                // 일반 텍스트인 경우
+                messageContent = data.content;
+            }
+
+            // 닉네임은 굵게, 메시지 내용은 그 옆에 표시
+            item.innerHTML = `
+                <div>${userIconHtml}<b>[${data.user.nick}]</b>&nbsp;</div>
+                <div>${messageContent}</div>
+            `;
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         });
 
-        // 서버에서 접속자 목록 갱신 시 우측 패널에 출력
+        // 접속자 목록 갱신 (기존 동일)
         socket.on('user list', function(users) {
-            usersList.innerHTML = ''; // 기존 목록 싹 지우기
+            usersList.innerHTML = '';
             users.forEach(user => {
                 const li = document.createElement('li');
                 const iconHtml = user.icon ? `<img src="${user.icon}" class="icon">` : '';

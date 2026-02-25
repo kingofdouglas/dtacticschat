@@ -3,57 +3,92 @@
 <head>
     <title>웹게임 채팅창</title>
     <style>
-        body { margin: 0; padding: 0; background-color: #f4f4f4; }
-        #chat-container { width: 500px; height: 250px; display: flex; flex-direction: column; border: 1px solid #ccc; background: white; font-family: 'Malgun Gothic', sans-serif; }
+        body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Malgun Gothic', sans-serif; }
+        /* 전체 500x250 레이아웃: 가로로 분할 (Flex) */
+        #wrapper { display: flex; width: 500px; height: 250px; border: 1px solid #ccc; background: white; }
+        
+        /* 왼쪽 채팅 영역 */
+        #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #ccc; }
         #messages { flex: 1; overflow-y: auto; margin: 0; padding: 10px; list-style-type: none; font-size: 13px; }
-        #messages li { padding: 3px 0; border-bottom: 1px dashed #eee; }
+        #messages li { padding: 3px 0; border-bottom: 1px dashed #eee; display: flex; align-items: center; }
+        #messages img.icon { width: 16px; height: 16px; margin-right: 5px; } /* 아이콘 크기 */
         #form { display: flex; padding: 5px; background: #ddd; }
-        /* 닉네임 입력칸 관련 CSS 삭제, 입력칸 크기 조정 */
         #input { flex: 1; padding: 3px; border: 1px solid #ccc; margin-right: 5px;}
         #form button { padding: 3px 10px; background: #333; color: white; border: none; cursor: pointer; }
+
+        /* 오른쪽 접속자 명단 영역 */
+        #user-list-container { width: 120px; display: flex; flex-direction: column; background: #fafafa; }
+        #user-list-header { padding: 5px; background: #333; color: white; text-align: center; font-size: 12px; font-weight: bold; }
+        #users { flex: 1; overflow-y: auto; margin: 0; padding: 10px; list-style-type: none; font-size: 12px; }
+        #users li { padding: 3px 0; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #users img.icon { width: 12px; height: 12px; margin-right: 4px; }
     </style>
 </head>
 <body>
-    <div id="chat-container">
-        <ul id="messages"></ul>
-        <form id="form" onsubmit="return false;">
-            <input id="input" placeholder="메시지 입력..." required autocomplete="off" />
-            <button>전송</button>
-        </form>
+    <div id="wrapper">
+        <div id="chat-container">
+            <ul id="messages"></ul>
+            <form id="form" onsubmit="return false;">
+                <input id="input" placeholder="메시지 입력..." required autocomplete="off" />
+                <button>전송</button>
+            </form>
+        </div>
+        <div id="user-list-container">
+            <div id="user-list-header">접속자</div>
+            <ul id="users"></ul>
+        </div>
     </div>
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         const socket = io();
+        
+        // URL에서 닉네임, 아이디, 아이콘 파라미터 가져오기
+        const urlParams = new URLSearchParams(window.location.search);
+        const myNick = urlParams.get('nick') || 'Guest_' + Math.floor(Math.random() * 1000);
+        const myId = urlParams.get('id') || 'guest';
+        const myIcon = urlParams.get('icon') || ''; // 아이콘 주소
+
+        // 내 정보를 하나의 객체로 묶기
+        const myInfo = { nick: myNick, id: myId, icon: myIcon };
+
+        // 접속하자마자 서버에 내 정보 등록 (join 이벤트)
+        socket.emit('join', myInfo);
+
         const form = document.getElementById('form');
         const input = document.getElementById('input');
         const messages = document.getElementById('messages');
+        const usersList = document.getElementById('users');
 
-        // ==== 핵심 API 로직: URL에서 닉네임 파라미터 가져오기 ====
-        const urlParams = new URLSearchParams(window.location.search);
-        let myNickname = urlParams.get('nickname');
-
-        // 만약 주소에 닉네임이 없다면? -> 랜덤 아이디(Guest_숫자) 자동 부여
-        if (!myNickname) {
-            myNickname = 'Guest_' + Math.floor(Math.random() * 10000);
-        }
-
-        // 전송 버튼 누를 때
+        // 메시지 전송
         form.addEventListener('submit', function(e) {
             e.preventDefault();
             if (input.value) {
-                // 저장된 myNickname과 함께 서버로 전송
-                socket.emit('chat message', { name: myNickname, msg: input.value });
+                // 내 정보 전체(myInfo)와 메시지를 같이 보냄
+                socket.emit('chat message', { user: myInfo, msg: input.value });
                 input.value = '';
             }
         });
 
-        // 서버에서 메시지가 오면 화면에 추가
+        // 서버에서 메시지 수신 시 화면에 출력
         socket.on('chat message', function(data) {
             const item = document.createElement('li');
-            item.innerHTML = `<b>[${data.name}]</b> ${data.msg}`;
+            // 아이콘이 있으면 이미지 태그 생성, 없으면 빈 칸
+            const iconHtml = data.user.icon ? `<img src="${data.user.icon}" class="icon">` : '';
+            item.innerHTML = `${iconHtml}<b>[${data.user.nick}]</b>&nbsp; ${data.msg}`;
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
+        });
+
+        // 서버에서 접속자 목록 갱신 시 우측 패널에 출력
+        socket.on('user list', function(users) {
+            usersList.innerHTML = ''; // 기존 목록 싹 지우기
+            users.forEach(user => {
+                const li = document.createElement('li');
+                const iconHtml = user.icon ? `<img src="${user.icon}" class="icon">` : '';
+                li.innerHTML = `${iconHtml}${user.nick}`;
+                usersList.appendChild(li);
+            });
         });
     </script>
 </body>

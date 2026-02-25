@@ -23,7 +23,7 @@
         .whisper-msg { color: #ff9ff3; font-weight: bold; }
 
         /* ★ [신규] 크기 조절 바 (Resizer) */
-        #resizer {width: 8px;cursor: col-resize;background: #1f1f1f;display: flex;align-items: center;justify-content: center;transition: background 0.2s;}
+        #resizer {width: 3px;cursor: col-resize;background: #1f1f1f;display: flex;align-items: center;justify-content: center;transition: background 0.2s;}
         #resizer:hover { background: #4a90e2; }
         #resizer::after {content: "⋮";color: #666;font-size: 14px;font-weight: bold;}
         
@@ -207,7 +207,38 @@
                 list.appendChild(li);
             });
         });
-
+        // 기존 변수 선언들 아래에 추가
+        const resizer = document.getElementById('resizer');
+        const userListCont = document.getElementById('user-list-container');
+        let isResizing = false;
+        
+        // 마우스를 눌렀을 때
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize'; // 마우스 커서 모양 변경
+            // 드래그 중 텍스트 선택 방지
+            document.body.style.userSelect = 'none';
+        });
+        
+        // 마우스를 움직일 때
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+        
+            // 오른쪽 끝에서의 거리를 계산하여 접속자 목록 너비 설정
+            const offsetRight = document.body.offsetWidth - e.pageX;
+            
+            // 최소 너비 80px, 최대 너비 400px 제한 (원하는 대로 조절 가능)
+            if (offsetRight > 80 && offsetRight < 400) {
+                userListCont.style.width = offsetRight + 'px';
+            }
+        });
+        
+        // 마우스를 뗐을 때
+        document.addEventListener('mouseup', () => {
+            isResizing = false;
+            document.body.style.cursor = 'default';
+            document.body.style.userSelect = 'auto';
+        });
         document.getElementById('form').onsubmit = (e) => {
             e.preventDefault();
             const val = input.value.trim();
@@ -357,6 +388,7 @@
     </script>
 </body>
 </html>
+
 
 
 

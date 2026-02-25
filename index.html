@@ -17,14 +17,14 @@
 <body>
     <div id="chat-container">
         <ul id="messages"></ul>
-        <form id="form" action="">
+        <form id="form" onsubmit="return false;">
             <input id="nickname" placeholder="닉네임" required autocomplete="off" />
             <input id="input" placeholder="메시지 입력..." required autocomplete="off" />
             <button>전송</button>
         </form>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         const socket = io();
         const form = document.getElementById('form');
@@ -53,4 +53,5 @@
         });
     </script>
 </body>
+
 </html>

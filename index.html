@@ -252,7 +252,26 @@
             input.value = '';
             emoPicker.style.display = 'none';
         };
-
+        // 접속자 헤더 클릭 이벤트
+        document.getElementById('user-count-header').style.cursor = 'pointer'; // 커서 모양 변경
+        document.getElementById('user-count-header').onclick = () => {
+            const userList = document.getElementById('users');
+            const resizer = document.getElementById('resizer');
+            const container = document.getElementById('user-list-container');
+        
+            if (userList.style.display === 'none') {
+                // 펴기
+                userList.style.display = 'block';
+                resizer.style.display = 'flex';
+                container.style.width = '160px'; // 기본 너비로 복구
+            } else {
+                // 접기
+                userList.style.display = 'none';
+                resizer.style.display = 'none';
+                container.style.width = 'auto'; // 헤더 크기에 맞게 축소
+                container.style.minWidth = '50px';
+            }
+        };
         // ★ [신규] 빈 공간 클릭 시 이모티콘 창 & 팝업 닫기
         document.addEventListener('click', (e) => {
             // 1. 유저 닉네임 팝업 제어
@@ -344,7 +363,47 @@
                 timeTooltip.style.display = 'none';
             }
         });
-
+        // [추가] 최근 사용 이모티콘을 저장할 배열
+        let recentEmos = JSON.parse(localStorage.getItem('recentEmos') || '[]');
+        
+        const drawEmos = () => {
+            const list = document.getElementById('emo-list');
+            list.innerHTML = '';
+        
+            // ★ 전체 이모티콘 목록 재구성 (최근 사용 이모티콘을 맨 앞으로)
+            // 1. 전체 목록에서 최근 사용한 것들을 제외한 나머지 추출
+            const otherEmos = emos.filter(f => !recentEmos.includes(f));
+            // 2. 최근 사용 목록 + 나머지 목록 합치기
+            const sortedEmos = [...recentEmos, ...otherEmos];
+        
+            sortedEmos.slice((pg-1)*10, pg*10).forEach(f => {
+                const img = document.createElement('img');
+                img.src = `/emoticons/${f}`;
+                img.onclick = () => {
+                    socket.emit('chat message', { type:'image', user:myInfo, content:img.src });
+                    
+                    // ★ 클릭 시 최근 사용 목록 업데이트
+                    updateRecentEmos(f); 
+                    
+                    emoPicker.style.display='none';
+                };
+                list.appendChild(img);
+            });
+            document.getElementById('emo-page-info').innerText = `${pg}/${Math.ceil(emos.length/10) || 1}`;
+        };
+        
+        // [추가] 최근 사용 목록 업데이트 함수
+        function updateRecentEmos(file) {
+            // 이미 있으면 지우고 맨 앞으로 (최신화)
+            recentEmos = recentEmos.filter(e => e !== file);
+            recentEmos.unshift(file);
+            
+            // 최대 10개까지만 기억 (한 페이지 분량)
+            if (recentEmos.length > 10) recentEmos.pop();
+            
+            localStorage.setItem('recentEmos', JSON.stringify(recentEmos));
+            drawEmos(); // 목록 새로고침
+        }
         // 이모티콘 렌더링
         let emos = []; let pg = 1;
         const drawEmos = () => {
@@ -388,6 +447,7 @@
     </script>
 </body>
 </html>
+
 
 
 

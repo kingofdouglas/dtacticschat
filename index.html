@@ -367,36 +367,8 @@
             
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
-            socket.on('chat history', function(history) {
-                history.forEach(data => {
-                    // 기존 chat message 출력 로직을 재사용해서 화면에 뿌림
-                    displayMessage(data); 
-                });
-            });
-            socket.on('chat message', function(data) {
-                displayMessage(data);
-            });
         });
-                function displayMessage(data) {
-            const item = document.createElement('li');
-            const userIconHtml = data.user.icon ? `<img src="${data.user.icon}" class="user-icon" onerror="this.style.display='none'">` : '';
-            
-            let messageContent = data.type === 'image' 
-                ? `<img src="${data.content}" class="chat-emoticon">` 
-                : `<span class="msg-text">${data.content}</span>`;
-            
-            const isMe = (data.user.nick === myInfo.nick);
-            const nickClass = isMe ? 'my-nickname' : 'other-nickname';
-            if (isMe) item.classList.add('my-message-bg');
-        
-            item.setAttribute('data-time', data.timestamp || Date.now());
-            item.setAttribute('data-nick', data.user.nick);
-        
-            item.innerHTML = `${userIconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> &nbsp;${messageContent}`;
-            
-            messages.appendChild(item);
-            messages.scrollTop = messages.scrollHeight;
-        }
+
         socket.on('user list', function(users) {
             usersList.innerHTML = '';
             users.sort((a, b) => {
@@ -423,7 +395,5 @@
     </script>
 </body>
 </html>
-
-
 
 

@@ -28,7 +28,7 @@ io.on('connection', (socket) => {
         socket.user = userData;
         connectedUsers[socket.id] = userData;
         if (chatHistory.length > 0) socket.emit('chat history', chatHistory);
-        io.emit('system message', `${userData.nick}님이 입장하셨습니다.`);
+        //io.emit('system message', `${userData.nick}님이 입장하셨습니다.`);
         io.emit('user list', Object.values(connectedUsers));
     });
 
@@ -97,7 +97,7 @@ io.on('connection', (socket) => {
         if (connectedUsers[socket.id]) {
             const nick = connectedUsers[socket.id].nick;
             delete connectedUsers[socket.id];
-            io.emit('system message', `${nick}님이 퇴장하셨습니다.`);
+            //io.emit('system message', `${nick}님이 퇴장하셨습니다.`);
             io.emit('user list', Object.values(connectedUsers));
         }
     });

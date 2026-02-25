@@ -158,6 +158,7 @@ io.on('connection', async (socket) => {
         const isBanned = await Ban.findOne({ ip: clientIp });
         if (isBanned) {
             socket.emit('system message', `차단된 IP입니다. (사유: ${isBanned.reason})`);
+            socket.emit('banned user', {reason: isBanned.reason,date: isBanned.date});
             socket.disconnect(true); // true를 넣어 강제 종료
             return; // 이후 로직 실행 방지
         }
@@ -199,15 +200,18 @@ io.on('connection', async (socket) => {
         io.emit('chat message', msgData);
     });
 
-    // D. 신고 접수
+   // D. 신고 접수 부분
     socket.on('report user', async (target) => {
         const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === target.id);
-        const targetIp = targetSocket ? (targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address) : 'Unknown';
-
+        
+        // 수정: rawIp에서 첫 번째 IP만 추출
+        let rawIp = targetSocket ? (targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address) : 'Unknown';
+        const targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp;
+    
         const newReport = new Report({
             targetNick: target.nick,
             targetId: target.id,
-            targetIp: targetIp,
+            targetIp: targetIp, // 이제 깔끔한 IP가 저장됨
             reporter: socket.user ? socket.user.nick : 'Unknown'
         });
         await newReport.save();
@@ -275,28 +279,26 @@ socket.on('mute user', (target) => {
         const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
         
         if (targetSocket) {
-            const targetIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
-            // 정보를 요청한 관리자에게만 타겟의 상세 정보를 응답함
+            let rawIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
+            const targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp; // 수정
+
             socket.emit('open ban page', {
                 ip: targetIp,
                 id: targetId,
                 nick: targetSocket.user.nick
             });
         } else {
-            socket.emit('system message', "[오류] 해당 유저는 현재 오프라인입니다. 신고 내역에서 처리하세요.");
+            socket.emit('system message', "[오류] 해당 유저는 현재 오프라인입니다.");
         }
     }
 });
     socket.on('get user ip', (targetId) => {
-    // 요청자가 관리자인지 확인
     if (ADMIN_IDS.includes(socket.user?.id)) {
-        // 대상 유저의 소켓 찾기
         const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
-        
         if (targetSocket) {
             let rawIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
-            const targetIp = rawIp.split(',')[0].trim(); // 쉼표가 있어도 첫 번째 것만 가져옴
-            // 요청한 관리자에게만 시스템 메시지로 IP 전달
+            const targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp; // 수정
+            
             socket.emit('system message', `[보안] ${targetSocket.user.nick}님의 IP: ${targetIp}`);
         } else {
             socket.emit('system message', `[오류] 대상 유저를 찾을 수 없습니다.`);

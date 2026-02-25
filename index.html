@@ -13,6 +13,9 @@
         #messages li { padding: 2px 4px; margin-bottom: 2px; word-break: break-all; border-radius: 4px; transition: background-color 0.1s; position: relative; } 
         #messages li:hover { background-color: #3d3d3d; }
         
+        /* ==== [신규] 내 채팅 배경색을 살짝 더 진하게 (#242424) ==== */
+        .my-message-bg { background-color: #242424; }
+        
         .user-icon { width: 11px; height: 11px; margin-right: 3px; vertical-align: text-bottom; border-radius: 2px; }
         .my-nickname, .other-nickname, .msg-text, .clickable-nick, .whisper-msg { vertical-align: baseline; }
         
@@ -53,12 +56,8 @@
         #user-list-container { width: 130px; display: flex; flex-direction: column; background: #2e2e2e; }
         #user-list-header { display: none; } 
         
-        /* ==== [수정] 유저 목록 왼쪽 정렬을 위해 justify-content 속성 확인/추가 ==== */
         #users { flex: 1; overflow-y: auto; margin: 0; padding: 5px; list-style-type: none; font-size: 12px; color: #ddd; }
-        /* justify-content: flex-start; 로 확실하게 왼쪽 정렬 */
         #users li { padding: 3px 2px; display: flex; align-items: center; justify-content: flex-start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-        /* ==== [신규] 관리자 왕관 아이콘 스타일 ==== */
         .admin-crown { font-size: 11px; margin-right: 3px; }
 
         #time-tooltip {
@@ -124,20 +123,25 @@
         
         let myIcon = urlParams.get('icon') || urlParams.get('con') || '';
 
-        if (myIcon.startsWith('./')) {
-            // ★ 아래 주소를 실제 운영 중인 웹게임 도메인으로 꼭 바꿔주세요!
-            const GAME_DOMAIN = 'http://여기에웹게임주소입력.com'; 
-            myIcon = GAME_DOMAIN + myIcon.substring(1); 
+        // ==== [핵심 수정] 부모 URL을 감지하여 마법처럼 절대경로로 바꿔주는 로직 ====
+        if (myIcon.startsWith('.') || myIcon.startsWith('/')) {
+            // document.referrer 는 이 iframe을 불러온 부모 사이트의 주소입니다.
+            if (document.referrer) {
+                try {
+                    // 부모 주소(예: http://게임.com/game/main.php)를 기준으로 ./img/... 를 해석합니다!
+                    myIcon = new URL(myIcon, document.referrer).href;
+                } catch(e) { console.error('아이콘 주소 변환 에러:', e); }
+            } else {
+                // 만약 브라우저 보안 때문에 부모 주소를 못 가져올 경우를 대비한 최후의 보루 (여기에만 웹게임 주소 입력)
+                const FALLBACK_DOMAIN = 'http://여기에본인웹게임주소입력.com'; 
+                myIcon = FALLBACK_DOMAIN + myIcon.replace(/^\./, ''); 
+            }
         }
 
         const myInfo = { nick: myNick, id: myId, icon: myIcon };
 
-        // ==== [수정] 여러 명의 관리자를 지원하는 배열(Array) 방식 ====
-        // 관리자 아이디를 추가하려면, 따옴표 안에 적고 쉼표(,)로 구분해서 계속 나열하시면 됩니다.
-        // 예: ['master', 'admin1', 'gm_hero']
+        // ★ 관리자 ID 등록 (배열)
         const ADMIN_IDS = ['master', 'admin2']; 
-        
-        // 내 아이디가 배열 안에 포함되어 있는지 확인 (true/false)
         const isAdmin = ADMIN_IDS.includes(myInfo.id);
 
         socket.emit('join', myInfo);
@@ -332,6 +336,9 @@
             const prefix = isMe ? `[귓속말 -> ${data.targetNick}]` : `[귓속말 <- ${data.user.nick}]`;
             const nickClass = isMe ? 'my-nickname' : 'other-nickname';
 
+            // [신규] 내가 보낸 귓속말에도 어두운 배경 클래스 추가
+            if (isMe) item.classList.add('my-message-bg');
+
             item.setAttribute('data-time', Date.now());
             item.setAttribute('data-nick', data.user.nick);
 
@@ -347,6 +354,9 @@
             const isMe = (data.user.nick === myInfo.nick);
             const nickClass = isMe ? 'my-nickname' : 'other-nickname';
 
+            // [신규] 내가 친 채팅이면 어두운 배경 클래스 추가
+            if (isMe) item.classList.add('my-message-bg');
+
             item.setAttribute('data-time', Date.now());
             item.setAttribute('data-nick', data.user.nick);
 
@@ -355,27 +365,22 @@
             messages.scrollTop = messages.scrollHeight;
         });
 
-        // ==== [수정] 접속자 목록 정렬 로직 (관리자 최상단) ====
         socket.on('user list', function(users) {
             usersList.innerHTML = '';
-            
-            // 1. 유저 배열을 정렬: 관리자면 앞으로, 일반 유저면 뒤로
             users.sort((a, b) => {
                 const isAAdmin = ADMIN_IDS.includes(a.id);
                 const isBAdmin = ADMIN_IDS.includes(b.id);
-                if (isAAdmin && !isBAdmin) return -1; // a가 관리자면 위로
-                if (!isAAdmin && isBAdmin) return 1;  // b가 관리자면 위로
-                return 0; // 둘 다 관리자거나 둘 다 일반 유저면 순서 유지
+                if (isAAdmin && !isBAdmin) return -1; 
+                if (!isAAdmin && isBAdmin) return 1;  
+                return 0; 
             });
 
-            // 2. 정렬된 배열을 화면에 출력
             users.forEach(user => {
                 const li = document.createElement('li');
                 const isMe = (user.nick === myInfo.nick);
                 const listNickColor = isMe ? '#5dade2' : '#dfdfdf';
                 const isThisUserAdmin = ADMIN_IDS.includes(user.id);
                 
-                // 해당 유저가 관리자면 왕관 아이콘 추가
                 const crownHtml = isThisUserAdmin ? `<span class="admin-crown">👑</span>` : '';
                 const iconHtml = user.icon ? `<img src="${user.icon}" class="user-icon">` : '';
 

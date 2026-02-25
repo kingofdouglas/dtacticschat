@@ -12,10 +12,13 @@
         /* 왼쪽 채팅 영역 (접속자 목록과의 구분선도 아주 어둡고 얇게 처리) */
         #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #1f1f1f; }
         
-        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 13px; line-height: 1.4; color: #ddd; }
-        #messages li { padding: 1px 2px; margin-bottom: 2px; display: flex; align-items: flex-start; word-break: break-all; }
+        /* line-height(줄간격)을 1.4에서 1.15로 대폭 축소 */
+        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 2px 4px; list-style-type: none; font-size: 13px; line-height: 1.15; color: #ddd; }
+
+        /* 위아래 padding(안쪽 여백)과 margin(바깥 여백)을 모두 0으로 제거 */
+        #messages li { padding: 0 2px; margin-bottom: 0; display: flex; align-items: flex-start; word-break: break-all; }
         
-        .user-icon { width: 14px; height: 14px; margin-right: 4px; margin-top: 2px; border-radius: 2px; }
+        .user-icon { width: 14px; height: 14px; margin-right: 4px; margin-top: 0; border-radius: 2px; }
         
         .my-nickname { color: #5dade2; font-weight: bold; }   
         .other-nickname { color: #dfdfdf; font-weight: bold; } 
@@ -219,3 +222,4 @@
     </script>
 </body>
 </html>
+

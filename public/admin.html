@@ -115,28 +115,39 @@
 <script>
     const urlParams = new URLSearchParams(window.location.search);
     const pw = urlParams.get('pw');
+    
 
-
-    // admin.html의 <script> 상단에 추가
-        window.onload = function() {
-            const params = new URLSearchParams(window.location.search);
-            const banIp = params.get('banIp');
-            const banNick = params.get('banNick');
-            
-            if (banIp) {
-                document.getElementById('manualIp').value = banIp;
-            }
-            if (banNick) {
-                document.getElementById('manualNick').value = banNick;
-            }
-            if (banIp || banNick) {
-                document.getElementById('manualReason').focus(); // 사유 입력창으로 커서 이동
-            }
-        }
+   
     // 데이터를 서버에서 불러오는 핵심 함수
     async function loadData() {
         if (!pw) { alert("비밀번호가 필요합니다."); window.close(); return; }
 
+        // 페이지 로드 시 실행
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const banIp = params.get('banIp');
+            const banNick = params.get('banNick');
+            const banId = params.get('banId'); // ID도 받아오기 위해 추가
+        
+            if (banIp) {
+                document.getElementById('manualIp').value = banIp;
+            }
+            if (banNick) {
+                // 닉네임 뒤에 ID를 붙여서 표시하면 관리자가 더 구분하기 쉽습니다.
+                document.getElementById('manualNick').value = banId ? `${banNick}(${banId})` : banNick;
+            }
+            
+            if (banIp || banNick) {
+                // 값이 있으면 바로 사유 입력창으로 포커스
+                setTimeout(() => {
+                    document.getElementById('manualReason').focus();
+                }, 100);
+            }
+        
+            // 데이터 불러오기 실행
+            loadData();
+        });
+        
         try {
             // 1. 신고 목록
             const repRes = await fetch(`/api/admin/reports?pw=${pw}`);
@@ -191,7 +202,7 @@
             document.getElementById('server-status').style.color = "#e74c3c";
         }
     }
-
+    
     // --- 관리자 액션 함수들 (함수 밖으로 분리) ---
 
     async function manualBan() {

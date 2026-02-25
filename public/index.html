@@ -251,7 +251,29 @@
                 list.appendChild(li);
             });
         });
-
+        // 소켓 이벤트 리스너 추가
+                socket.on('banned user', function(data) {
+                    // 1. 자동 재접속 방지 (Socket.io의 기본 재접속 로직 해제)
+                    socket.io.opts.reconnection = false;
+                    
+                    // 2. 화면을 덮어버리는 차단 레이어 생성 (선택 사항)
+                    document.body.innerHTML = `
+                        <div style="
+                            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+                            height: 100vh; background: #000; color: #ff4d4d; font-family: sans-serif;
+                        ">
+                            <h1>🚫 접근이 차단된 IP입니다</h1>
+                            <p style="color: #ccc;">사유: ${data.reason || '관리자 정책 위반'}</p>
+                            <p style="color: #888;">차단 일시: ${new Date(data.date).toLocaleString()}</p>
+                            <button onclick="location.href='about:blank'" style="
+                                margin-top: 20px; padding: 10px 20px; cursor: pointer;
+                            ">나가기</button>
+                        </div>
+                    `;
+                
+                    // 3. 브라우저가 자동으로 새로고침 하려는 루프가 있다면 강제 종료
+                    window.stop(); 
+                });
         // [3] 클릭 및 팝업 제어 (통합 로직)
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('clickable-nick')) {
@@ -319,6 +341,7 @@
             }
             userPopup.style.display='none';
         };
+        
 
         // 관리자 전용: 차단/해제 토글
         document.getElementById('btn-mute-toggle').onclick = () => {
@@ -436,6 +459,7 @@ socket.on('open ban page', (data) => {
     </script>
 </body>
 </html>
+
 
 
 

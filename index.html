@@ -124,14 +124,21 @@
         
         let myIcon = urlParams.get('icon') || urlParams.get('con') || '';
 
+        // ==== [업그레이드] 부모 페이지의 폴더 경로까지 계산하여 매핑 ====
         if (myIcon.startsWith('.') || myIcon.startsWith('/')) {
             if (document.referrer) {
                 try {
+                    // URL 객체를 사용하면 상대경로(./)를 부모 주소 기준으로 완벽하게 계산해줍니다.
+                    // 예: 부모가 http://forceofd.org/dt/index.php 이고 아이콘이 ./img/a.gif 면
+                    // 결과값은 http://forceofd.org/dt/img/a.gif 가 됩니다.
                     myIcon = new URL(myIcon, document.referrer).href;
-                } catch(e) { console.error('아이콘 주소 변환 에러:', e); }
+                } catch(e) { 
+                    console.error('아이콘 주소 변환 에러:', e); 
+                }
             } else {
-                const FALLBACK_DOMAIN = 'http://여기에본인웹게임주소입력.com'; 
-                myIcon = FALLBACK_DOMAIN + myIcon.replace(/^\./, ''); 
+                // 부모 주소를 못 가져올 경우를 대비한 수동 설정 (여기에 정확한 경로를 입력해두면 안전합니다)
+                const FIXED_DOMAIN = 'http://forceofd.org/dt/'; 
+                myIcon = FIXED_DOMAIN + myIcon.replace(/^\.\//, ''); 
             }
         }
 
@@ -389,3 +396,4 @@
     </script>
 </body>
 </html>
+

@@ -3,36 +3,63 @@
 <head>
     <title>Dtactics Admin Panel</title>
     <style>
-        body { font-family: 'Malgun Gothic', sans-serif; background: #f4f4f4; margin: 20px; color: #333; }
-        .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { border-bottom: 2px solid #3498db; padding-bottom: 10px; color: #2c3e50; }
-        h2 { margin-top: 30px; font-size: 18px; color: #2980b9; }
+        /* 채팅방과 동일한 다크 테마 설정 */
+        html, body { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background-color: #2e2e2e; color: #ddd; 
+            font-family: 'Malgun Gothic', sans-serif; 
+        }
+        .container { 
+            max-width: 1000px; margin: 20px auto; padding: 20px; 
+            background: #333; border: 1px solid #1f1f1f; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        h1 { border-bottom: 2px solid #4a90e2; padding-bottom: 10px; color: #5dade2; font-size: 22px; }
+        h2 { margin-top: 30px; font-size: 16px; color: #f1c40f; border-left: 4px solid #f1c40f; padding-left: 10px; }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
-        th { background: #f8f9fa; }
-        tr:hover { background: #f1f1f1; }
+        /* 테이블 스타일 */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; background: #242424; }
+        th, td { padding: 10px; border: 1px solid #444; text-align: left; }
+        th { background: #1f1f1f; color: #aaa; font-weight: bold; }
+        tr:hover { background: #3d3d3d; }
 
-        .btn-ban { background: #e74c3c; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; }
-        .btn-unban { background: #2ecc71; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; }
-        .btn-refresh { background: #3498db; color: white; border: none; padding: 8px 15px; cursor: pointer; border-radius: 4px; float: right; }
+        /* 버튼 스타일 */
+        button { border-radius: 4px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-ban { background: #e74c3c; color: white; padding: 5px 10px; }
+        .btn-ban:hover { background: #c0392b; }
+        .btn-unban { background: #2ecc71; color: white; padding: 5px 10px; }
+        .btn-unban:hover { background: #27ae60; }
+        .btn-refresh { background: #4a90e2; color: white; padding: 8px 15px; float: right; }
+        .btn-refresh:hover { background: #357abd; }
         
-        .ban-form { background: #fdf2f2; padding: 15px; border-radius: 5px; margin-top: 10px; display: flex; gap: 10px; align-items: center; }
-        .ban-form input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        /* 상단 수동 차단 폼 */
+        .ban-form { 
+            background: #252525; padding: 15px; border-radius: 5px; 
+            margin-top: 10px; display: flex; gap: 10px; align-items: center; border: 1px solid #444;
+        }
+        .ban-form input { 
+            padding: 8px; background: #1a1a1a; border: 1px solid #444; 
+            color: #eee; border-radius: 4px; flex: 1; 
+        }
+        .ban-form input:focus { border-color: #4a90e2; outline: none; }
+
+        /* 스크롤바 디자인 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #4a4a4a; border-radius: 3px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <button class="btn-refresh" onclick="loadData()">새로고침 🔄</button>
-    <h1>관리자 패널</h1>
+    <h1>⚙️ Dtactics 관리자 패널</h1>
 
-    <h2>🚫 수동 IP 차단(BAN)</h2>
+    <h2>🚫 수동 IP 차단 (BAN)</h2>
     <div class="ban-form">
         <input type="text" id="banIp" placeholder="차단할 IP">
         <input type="text" id="banNick" placeholder="닉네임">
         <input type="text" id="banReason" placeholder="차단 사유">
-        <button class="btn-ban" onclick="addBan()">즉시 차단</button>
+        <button class="btn-ban" style="padding: 8px 20px;" onclick="addBan()">즉시 차단</button>
     </div>
 
     <h2>📢 최근 신고 내역</h2>
@@ -71,52 +98,48 @@
     async function loadData() {
         if (!pw) {
             alert("권한이 없습니다.");
-            location.href = "/";
+            window.close(); // 권한 없으면 창 닫기
             return;
         }
 
         try {
-            // 1. 신고 목록 가져오기
             const repRes = await fetch(`/api/admin/reports?pw=${pw}`);
             const reports = await repRes.json();
             const repBody = document.querySelector('#reportTable tbody');
             repBody.innerHTML = reports.map(r => `
                 <tr>
-                    <td>${r.targetNick}(${r.targetId})</td>
+                    <td style="color:#5dade2;">${r.targetNick} (${r.targetId})</td>
                     <td>${r.targetIp}</td>
                     <td>${r.reporter}</td>
-                    <td>${new Date(r.date).toLocaleString()}</td>
-                    <td><button class="btn-ban" onclick="quickBan('${r.targetIp}', '${r.targetId}', '${r.targetNick}')">즉시차단 / 밴</button></td>
+                    <td style="color:#888;">${new Date(r.date).toLocaleString()}</td>
+                    <td><button class="btn-ban" onclick="quickBan('${r.targetIp}', '${r.targetId}', '${r.targetNick}')">밴</button></td>
                 </tr>
             `).join('');
 
-            // 2. 밴 목록 가져오기
             const banRes = await fetch(`/api/admin/bans?pw=${pw}`);
             const bans = await banRes.json();
             const banBody = document.querySelector('#banTable tbody');
             banBody.innerHTML = bans.map(b => `
                 <tr>
-                    <td>${b.nick}(${b.id})</td>
+                    <td style="color:#e74c3c;">${b.nick} (${b.id})</td>
                     <td>${b.ip}</td>
                     <td>${b.reason || '사유 없음'}</td>
-                    <td>${new Date(b.date).toLocaleString()}</td>
-                    <td><button class="btn-unban" onclick="unban('${b._id}')">해제 / 언밴</button></td>
+                    <td style="color:#888;">${new Date(b.date).toLocaleString()}</td>
+                    <td><button class="btn-unban" onclick="unban('${b._id}')">해제</button></td>
                 </tr>
             `).join('');
         } catch (e) {
             console.error(e);
-            alert("데이터를 불러오는데 실패했습니다. 비밀번호를 확인하세요.");
+            alert("데이터를 불러오는데 실패했습니다.");
         }
     }
 
-    // 신고 내역에서 바로 밴 처리
     function quickBan(ip, id, nick) {
         if(confirm(`${nick}님을 즉시 차단하시겠습니까?`)) {
             executeBan({ ip, id, nick, reason: "신고 누적으로 인한 차단" });
         }
     }
 
-    // 수동 폼으로 밴 처리
     function addBan() {
         const ip = document.getElementById('banIp').value;
         const nick = document.getElementById('banNick').value;
@@ -125,31 +148,22 @@
         executeBan({ ip, id: 'manual', nick, reason });
     }
 
-    // 밴 실행 API 호출
     async function executeBan(data) {
         const res = await fetch(`/api/admin/ban?pw=${pw}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
-        if(res.ok) {
-            alert("차단되었습니다.");
-            loadData();
-        }
+        if(res.ok) { alert("차단되었습니다."); loadData(); }
     }
 
-    // 밴 해제 API 호출
     async function unban(dbId) {
         if(confirm("차단을 해제하시겠습니까?")) {
             const res = await fetch(`/api/admin/ban/${dbId}?pw=${pw}`, { method: 'DELETE' });
-            if(res.ok) {
-                alert("해제되었습니다.");
-                loadData();
-            }
+            if(res.ok) { alert("해제되었습니다."); loadData(); }
         }
     }
 
-    // 초기 로딩
     loadData();
 </script>
 

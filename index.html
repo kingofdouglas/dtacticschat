@@ -3,45 +3,34 @@
 <head>
     <title>웹게임 채팅창</title>
     <style>
-        /* ==== 스크린샷 기반 다크 테마 배경 및 폰트 ==== */
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #2e2e2e; font-family: 'Malgun Gothic', '맑은 고딕', dotum, sans-serif; box-sizing: border-box; }
         *, *:before, *:after { box-sizing: inherit; }
 
         #wrapper { display: flex; width: 100%; height: 100%; background: #2e2e2e; position: relative; }
-        
-        /* 왼쪽 채팅 영역 (접속자 목록과의 구분선도 아주 어둡고 얇게 처리) */
         #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #1f1f1f; }
-        
-        /* line-height(줄간격)을 1.4에서 1.15로 대폭 축소 */
-        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 2px 4px; list-style-type: none; font-size: 13px; line-height: 1.15; color: #ddd; }
-
-        /* 위아래 padding(안쪽 여백)과 margin(바깥 여백)을 모두 0으로 제거 */
+        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 13px; line-height: 1.15; color: #ddd; }
         #messages li { padding: 0 2px; margin-bottom: 0; display: flex; align-items: flex-start; word-break: break-all; }
         
         .user-icon { width: 14px; height: 14px; margin-right: 4px; margin-top: 0; border-radius: 2px; }
-        
         .my-nickname { color: #5dade2; font-weight: bold; }   
         .other-nickname { color: #dfdfdf; font-weight: bold; } 
         .msg-text { color: #dfdfdf; }
         .chat-emoticon { width: 40px; height: 40px; vertical-align: middle; }
 
-        /* ==== [핵심 수정] 하단 입력폼 (테두리 싹 없애고 배경색으로만 구분) ==== */
-        /* 전체 채팅방(#2e2e2e)보다 살짝 밝은 회색(#3a3a3a)으로 하단 바 설정 */
+        /* ==== [신규] 닉네임 클릭 효과 및 시스템/귓속말 컬러 ==== */
+        .clickable-nick { cursor: pointer; }
+        .clickable-nick:hover { text-decoration: underline; color: #fff; }
+        .system-msg { color: #f39c12; font-weight: bold; font-size: 12px; }
+        .whisper-msg { color: #ff9ff3; font-weight: bold; }
+
         #form { display: flex; padding: 0 4px; background: #3a3a3a; align-items: center; height: 28px; border: none; }
-        
-        /* + 버튼: 테두리, 배경 제거하고 글씨만 보이게 처리 */
         #emo-toggle-btn { width: 24px; height: 100%; background: transparent; border: none; color: #aaa; cursor: pointer; font-weight: bold; font-size: 16px; padding: 0; display: flex; align-items: center; justify-content: center; }
         #emo-toggle-btn:hover { color: #fff; }
-        
-        /* 텍스트 입력칸: 테두리, 배경 제거 */
         #input { flex: 1; padding: 0 4px; background: transparent; border: none; color: #eee; height: 100%; font-size: 13px; outline: none; }
-        #input::placeholder { color: #888; font-weight: bold; } /* 플레이스홀더 색상 조정 */
-        
-        /* 전송 버튼: 스크린샷처럼 테두리 없이 깔끔하게 텍스트만 보이게 처리 */
+        #input::placeholder { color: #888; font-weight: bold; } 
         #form button[type="submit"] { padding: 0 8px; height: 100%; background: transparent; color: #999; border: none; cursor: pointer; font-size: 12px; font-weight: bold; }
         #form button[type="submit"]:hover { color: #fff; }
 
-        /* 이모티콘 팝업창 */
         #emo-picker { position: absolute; bottom: 32px; left: 2px; width: 210px; background: #333; border: 1px solid #111; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); padding: 5px; display: none; flex-direction: column; z-index: 100; }
         #emo-list { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-start; min-height: 80px; align-content: flex-start; }
         #emo-list img { width: 36px; height: 36px; cursor: pointer; border: 1px solid transparent; }
@@ -50,13 +39,18 @@
         #emo-pagination button { background: #444; border: 1px solid #222; color: #ccc; cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 11px; }
         #emo-pagination button:disabled { color: #666; border-color: #333; cursor: not-allowed; background-color: transparent; }
 
-        /* 오른쪽 접속자 명단 (배경색 통일) */
+        /* ==== [신규] 유저 클릭 시 뜨는 팝업 메뉴 ==== */
+        #user-popup { position: absolute; background: #333; border: 1px solid #111; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); padding: 5px; display: none; flex-direction: column; z-index: 101; width: 120px; }
+        .up-header { font-size: 12px; color: #5dade2; font-weight: bold; text-align: center; margin-bottom: 4px; border-bottom: 1px solid #444; padding-bottom: 2px; }
+        #user-popup button { background: #444; color: #eee; border: 1px solid #222; margin: 2px 0; padding: 4px; font-size: 11px; cursor: pointer; }
+        #user-popup button:hover { background: #555; }
+        .admin-btn { display: none; } /* 기본적으론 관리자 버튼 숨김 */
+
         #user-list-container { width: 130px; display: flex; flex-direction: column; background: #2e2e2e; }
         #user-list-header { display: none; } 
         #users { flex: 1; overflow-y: auto; margin: 0; padding: 5px; list-style-type: none; font-size: 13px; color: #ddd; }
         #users li { padding: 3px 2px; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* 스크롤바 */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #4a4a4a; border-radius: 4px; }
@@ -75,6 +69,14 @@
                     <span id="emo-page-info">1 / 1</span>
                     <button id="emo-next">▶</button>
                 </div>
+            </div>
+
+            <div id="user-popup">
+                <div class="up-header" id="up-nick"></div>
+                <button id="btn-whisper">귓속말 보내기</button>
+                <button id="btn-mute" class="admin-btn" style="color:#ff6b6b;">채팅 금지</button>
+                <button id="btn-unmute" class="admin-btn" style="color:#51cf66;">금지 해제</button>
+                <button id="btn-clear" class="admin-btn" style="color:#fcc419;">채팅창 청소</button>
             </div>
 
             <form id="form" onsubmit="return false;">
@@ -99,6 +101,10 @@
         const myIcon = urlParams.get('icon') || '';
         const myInfo = { nick: myNick, id: myId, icon: myIcon };
 
+        // ★ 여기도 서버와 동일한 관리자 ID를 입력하세요! (클라이언트 화면 제어용)
+        const ADMIN_ID = 'master'; 
+        const isAdmin = (myInfo.id === ADMIN_ID);
+
         socket.emit('join', myInfo);
 
         const form = document.getElementById('form');
@@ -107,11 +113,68 @@
         const usersList = document.getElementById('users');
         const emoToggleBtn = document.getElementById('emo-toggle-btn');
         const emoPicker = document.getElementById('emo-picker');
+        const userPopup = document.getElementById('user-popup');
 
+        let selectedUser = { nick: '', id: '' };
+
+        // ==== [신규] 유저 팝업 및 귓속말/관리자 기능 이벤트 처리 ====
+        
+        // 1. 화면의 빈 곳을 클릭하면 팝업 닫기
+        document.addEventListener('click', (e) => {
+            if(!e.target.classList.contains('clickable-nick') && !userPopup.contains(e.target)) {
+                userPopup.style.display = 'none';
+            }
+        });
+
+        // 2. 닉네임 클릭 시 팝업 띄우기 (이벤트 위임)
+        document.getElementById('wrapper').addEventListener('click', (e) => {
+            if (e.target.classList.contains('clickable-nick')) {
+                const targetNick = e.target.getAttribute('data-nick');
+                const targetId = e.target.getAttribute('data-id');
+                
+                if (targetNick === myInfo.nick) return; // 자기 자신을 클릭하면 무시
+
+                selectedUser = { nick: targetNick, id: targetId };
+                document.getElementById('up-nick').innerText = targetNick;
+
+                // 관리자라면 특수 버튼들 보이기
+                if (isAdmin) {
+                    document.querySelectorAll('.admin-btn').forEach(btn => btn.style.display = 'block');
+                }
+
+                // 마우스 클릭 위치 근처에 팝업 띄우기
+                const rect = e.target.getBoundingClientRect();
+                const wrapperRect = document.getElementById('wrapper').getBoundingClientRect();
+                userPopup.style.top = (rect.bottom - wrapperRect.top + 5) + 'px';
+                userPopup.style.left = (rect.left - wrapperRect.left) + 'px';
+                userPopup.style.display = 'flex';
+                emoPicker.style.display = 'none'; // 이모티콘 창 열려있으면 닫기
+            }
+        });
+
+        // 3. 팝업창 버튼 기능 연결
+        document.getElementById('btn-whisper').addEventListener('click', () => {
+            input.value = `/w ${selectedUser.nick} `; // 채팅창에 /w 닉네임 자동 입력
+            input.focus();
+            userPopup.style.display = 'none';
+        });
+        document.getElementById('btn-mute').addEventListener('click', () => {
+            socket.emit('mute user', selectedUser.id);
+            userPopup.style.display = 'none';
+        });
+        document.getElementById('btn-unmute').addEventListener('click', () => {
+            socket.emit('unmute user', selectedUser.id);
+            userPopup.style.display = 'none';
+        });
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            socket.emit('clear chat');
+            userPopup.style.display = 'none';
+        });
+
+        // ==== 이모티콘 관련 기능 (기존 동일) ====
         let emoticonFiles = [];
         let currentEmoPage = 1;
         const EMO_PER_PAGE = 15; 
-
         const emoList = document.getElementById('emo-list');
         const emoPrevBtn = document.getElementById('emo-prev');
         const emoNextBtn = document.getElementById('emo-next');
@@ -120,7 +183,6 @@
         function renderEmoticons() {
             emoList.innerHTML = ''; 
             const totalPages = Math.ceil(emoticonFiles.length / EMO_PER_PAGE) || 1;
-            
             const startIndex = (currentEmoPage - 1) * EMO_PER_PAGE;
             const endIndex = Math.min(startIndex + EMO_PER_PAGE, emoticonFiles.length);
 
@@ -134,71 +196,84 @@
                 });
                 emoList.appendChild(img);
             }
-
             emoPageInfo.innerText = `${currentEmoPage} / ${totalPages}`;
             emoPrevBtn.disabled = currentEmoPage === 1;
             emoNextBtn.disabled = currentEmoPage === totalPages || totalPages === 0;
         }
 
-        fetch('/api/emoticons')
-            .then(response => response.json())
-            .then(files => {
-                emoticonFiles = files;
-                renderEmoticons(); 
-            })
-            .catch(err => console.error('로드 실패:', err));
-
-        emoPrevBtn.addEventListener('click', () => {
-            if (currentEmoPage > 1) {
-                currentEmoPage--;
-                renderEmoticons();
-            }
-        });
-
-        emoNextBtn.addEventListener('click', () => {
-            const totalPages = Math.ceil(emoticonFiles.length / EMO_PER_PAGE);
-            if (currentEmoPage < totalPages) {
-                currentEmoPage++;
-                renderEmoticons();
-            }
-        });
-
-        emoToggleBtn.addEventListener('click', () => {
-            emoPicker.style.display = emoPicker.style.display === 'flex' ? 'none' : 'flex';
-        });
+        fetch('/api/emoticons').then(res => res.json()).then(files => { emoticonFiles = files; renderEmoticons(); }).catch(err => console.error(err));
+        emoPrevBtn.addEventListener('click', () => { if (currentEmoPage > 1) { currentEmoPage--; renderEmoticons(); } });
+        emoNextBtn.addEventListener('click', () => { if (currentEmoPage < Math.ceil(emoticonFiles.length / EMO_PER_PAGE)) { currentEmoPage++; renderEmoticons(); } });
+        emoToggleBtn.addEventListener('click', () => { emoPicker.style.display = emoPicker.style.display === 'flex' ? 'none' : 'flex'; userPopup.style.display = 'none'; });
 
         function sendMessage(type, content) {
             if (!content) return;
             socket.emit('chat message', { type: type, user: myInfo, content: content });
         }
 
+        // ==== [신규] 메시지 전송 시 귓속말(/w) 명령어 분석 ====
         form.addEventListener('submit', function(e) {
             e.preventDefault();
-            if(input.value.trim() !== "") {
-                sendMessage('text', input.value);
+            const text = input.value.trim();
+            if(text !== "") {
+                if (text.startsWith('/w ')) {
+                    // '/w 닉네임 할말' 구조를 잘라서 서버로 전송
+                    const parts = text.split(' ');
+                    if (parts.length > 2) {
+                        const targetNick = parts[1];
+                        const msg = parts.slice(2).join(' ');
+                        socket.emit('whisper', { targetNick: targetNick, user: myInfo, content: msg });
+                    }
+                } else {
+                    sendMessage('text', text);
+                }
                 input.value = '';
                 emoPicker.style.display = 'none';
             }
+        });
+
+        // ==== 서버로부터 메시지 수신 처리 ====
+        
+        socket.on('system message', (msg) => {
+            const item = document.createElement('li');
+            item.innerHTML = `<span class="system-msg">[안내] ${msg}</span>`;
+            messages.appendChild(item);
+            messages.scrollTop = messages.scrollHeight;
+        });
+
+        socket.on('clear chat', () => {
+            messages.innerHTML = ''; // 채팅창 내부의 HTML을 싹 비움
+        });
+
+        socket.on('whisper', (data) => {
+            const item = document.createElement('li');
+            const isMe = (data.user.nick === myInfo.nick);
+            
+            // 내가 보낸거면 [귓속말 -> 닉네임], 받은거면 [귓속말 <- 닉네임]
+            const prefix = isMe ? `[귓속말 -> ${data.targetNick}]` : `[귓속말 <- ${data.user.nick}]`;
+            const nickClass = isMe ? 'my-nickname' : 'other-nickname';
+
+            item.innerHTML = `
+                <div><span class="whisper-msg">${prefix}</span> <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span></div>
+                &nbsp;<div><span class="msg-text">${data.content}</span></div>
+            `;
+            messages.appendChild(item);
+            messages.scrollTop = messages.scrollHeight;
         });
 
         socket.on('chat message', function(data) {
             const item = document.createElement('li');
             const userIconHtml = data.user.icon ? `<img src="${data.user.icon}" class="user-icon">` : '';
             
-            let messageContent = '';
-            if (data.type === 'image') {
-                messageContent = `<img src="${data.content}" class="chat-emoticon">`;
-            } else {
-                messageContent = `<span class="msg-text">${data.content}</span>`;
-            }
-
+            let messageContent = data.type === 'image' ? `<img src="${data.content}" class="chat-emoticon">` : `<span class="msg-text">${data.content}</span>`;
             const isMe = (data.user.nick === myInfo.nick);
             const nickClass = isMe ? 'my-nickname' : 'other-nickname';
 
+            // [신규] 닉네임에 clickable-nick 클래스와 데이터(data-nick, id) 부여
             item.innerHTML = `
                 <div>
                     ${userIconHtml}
-                    <span class="${nickClass}">${data.user.nick}:</span>
+                    <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span>
                 </div>
                 &nbsp;<div>${messageContent}</div>
             `;
@@ -211,15 +286,14 @@
             users.forEach(user => {
                 const li = document.createElement('li');
                 const iconHtml = user.icon ? `<img src="${user.icon}" class="user-icon">` : '';
-                
                 const isMe = (user.nick === myInfo.nick);
                 const listNickColor = isMe ? '#5dade2' : '#dfdfdf';
 
-                li.innerHTML = `${iconHtml}<span style="color:${listNickColor};">${user.nick}</span>`;
+                // [신규] 접속자 목록 닉네임에도 클릭 기능 부여
+                li.innerHTML = `${iconHtml}<span class="clickable-nick" data-nick="${user.nick}" data-id="${user.id}" style="color:${listNickColor};">${user.nick}</span>`;
                 usersList.appendChild(li);
             });
         });
     </script>
 </body>
 </html>
-

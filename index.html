@@ -3,53 +3,54 @@
 <head>
     <title>웹게임 채팅창</title>
     <style>
-        /* 기존 스타일 유지 */
+        /* 기본 여백 완전 제거 */
         body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Malgun Gothic', sans-serif; }
-        #wrapper { display: flex; width: 500px; height: 250px; border: 1px solid #ccc; background: white; position: relative; /* 팝업 위치 기준점 */ }
+        #wrapper { display: flex; width: 500px; height: 250px; border: 1px solid #ccc; background: white; position: relative; }
         
+        /* 왼쪽 채팅 영역 */
         #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #ccc; }
-        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 10px; list-style-type: none; font-size: 13px; }
-        /* 메시지 높이 정렬 수정 */
-        #messages li { padding: 3px 0; border-bottom: 1px dashed #eee; display: flex; align-items: flex-start; }
-        #messages img.user-icon { width: 16px; height: 16px; margin-right: 5px; margin-top: 2px; }
-        /* [신규] 채팅창에 표시될 이모티콘 크기 (40x40) */
+        
+        /* ==== [수정] 대화창 여백 및 선 제거 (다닥다닥 붙이기) ==== */
+        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 2px 4px; list-style-type: none; font-size: 12px; line-height: 1.2; }
+        #messages li { padding: 0; margin-bottom: 2px; /* 선 제거, 아래 여백만 2px 줌 */ display: flex; align-items: flex-start; }
+        #messages img.user-icon { width: 14px; height: 14px; margin-right: 3px; margin-top: 1px; }
         #messages img.chat-emoticon { width: 40px; height: 40px; vertical-align: middle; }
 
-        /* 하단 입력폼 영역 수정 */
-        #form { display: flex; padding: 5px; background: #ddd; align-items: center; position: relative; }
-        #input { flex: 1; padding: 5px; border: 1px solid #ccc; margin-right: 5px; height: 20px;}
-        
-        /* [신규] + 버튼 스타일 */
-        #emo-toggle-btn { width: 30px; height: 30px; margin-right: 5px; background: #eee; border: 1px solid #ccc; cursor: pointer; font-weight: bold; font-size: 16px; color: #555; }
-        #emo-toggle-btn:hover { background: #ddd; }
-        #form button[type="submit"] { padding: 0 15px; height: 30px; background: #333; color: white; border: none; cursor: pointer; }
+        /* ==== [수정] 하단 입력폼 공간 극한으로 줄이기 ==== */
+        #form { display: flex; padding: 2px; background: #ddd; align-items: center; height: 24px; }
+        #emo-toggle-btn { width: 24px; height: 100%; margin-right: 2px; background: #eee; border: 1px solid #ccc; cursor: pointer; font-weight: bold; font-size: 14px; padding: 0; color: #555; }
+        #input { flex: 1; padding: 0 4px; border: 1px solid #ccc; margin-right: 2px; height: 100%; box-sizing: border-box; font-size: 12px; }
+        #form button[type="submit"] { padding: 0 8px; height: 100%; background: #333; color: white; border: none; cursor: pointer; font-size: 12px; }
 
-        /* [신규] 이모티콘 선택 팝업창 스타일 */
+        /* ==== [신규] 이모티콘 팝업창 (페이징 포함) ==== */
         #emo-picker {
             position: absolute;
-            bottom: 40px; /* 입력창 바로 위에 위치 */
-            left: 5px;
-            width: 250px;
-            max-height: 150px;
-            overflow-y: auto;
+            bottom: 28px; /* 입력창 바로 위 */
+            left: 2px;
+            width: 210px;
             background: white;
             border: 1px solid #ccc;
             box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
-            padding: 10px;
-            display: none; /* 기본적으로 숨김 */
-            flex-wrap: wrap;
-            gap: 5px;
+            padding: 5px;
+            display: none; 
+            flex-direction: column;
             z-index: 100;
         }
-        /* 팝업창 안의 이모티콘 이미지 스타일 */
-        #emo-picker img { width: 35px; height: 35px; cursor: pointer; border: 1px solid transparent; }
-        #emo-picker img:hover { border-color: #007bff; background: #f0f8ff; }
+        
+        #emo-list { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-start; min-height: 80px; align-content: flex-start; }
+        #emo-list img { width: 36px; height: 36px; cursor: pointer; border: 1px solid transparent; }
+        #emo-list img:hover { border-color: #007bff; background: #f0f8ff; }
+        
+        /* 페이지 이동 버튼 영역 */
+        #emo-pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px; font-size: 11px; }
+        #emo-pagination button { background: none; border: 1px solid #ccc; cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 11px; background-color: #f9f9f9; }
+        #emo-pagination button:disabled { color: #aaa; border-color: #eee; cursor: not-allowed; background-color: transparent; }
 
-        /* 오른쪽 접속자 명단 (기존 동일) */
-        #user-list-container { width: 120px; display: flex; flex-direction: column; background: #fafafa; }
-        #user-list-header { padding: 5px; background: #333; color: white; text-align: center; font-size: 12px; font-weight: bold; }
-        #users { flex: 1; overflow-y: auto; margin: 0; padding: 10px; list-style-type: none; font-size: 12px; }
-        #users li { padding: 3px 0; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* 오른쪽 접속자 명단 (기존 동일, 여백 살짝 축소) */
+        #user-list-container { width: 110px; display: flex; flex-direction: column; background: #fafafa; }
+        #user-list-header { padding: 3px; background: #333; color: white; text-align: center; font-size: 11px; font-weight: bold; }
+        #users { flex: 1; overflow-y: auto; margin: 0; padding: 5px; list-style-type: none; font-size: 11px; }
+        #users li { padding: 2px 0; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #users img.icon { width: 12px; height: 12px; margin-right: 4px; }
     </style>
 </head>
@@ -58,11 +59,18 @@
         <div id="chat-container">
             <ul id="messages"></ul>
             
-            <div id="emo-picker"></div>
+            <div id="emo-picker">
+                <div id="emo-list"></div>
+                <div id="emo-pagination">
+                    <button id="emo-prev">◀</button>
+                    <span id="emo-page-info">1 / 1</span>
+                    <button id="emo-next">▶</button>
+                </div>
+            </div>
 
             <form id="form" onsubmit="return false;">
                 <button id="emo-toggle-btn" type="button">+</button>
-                <input id="input" placeholder="메시지 입력..." required autocomplete="off" />
+                <input id="input" placeholder="메시지 입력..." autocomplete="off" />
                 <button type="submit">전송</button>
             </form>
         </div>
@@ -76,7 +84,6 @@
     <script>
         const socket = io();
         
-        // URL 파라미터 및 내 정보 설정 (기존 동일)
         const urlParams = new URLSearchParams(window.location.search);
         const myNick = urlParams.get('nick') || 'Guest_' + Math.floor(Math.random() * 1000);
         const myId = urlParams.get('id') || 'guest';
@@ -85,7 +92,6 @@
 
         socket.emit('join', myInfo);
 
-        // DOM 요소 선택
         const form = document.getElementById('form');
         const input = document.getElementById('input');
         const messages = document.getElementById('messages');
@@ -93,76 +99,106 @@
         const emoToggleBtn = document.getElementById('emo-toggle-btn');
         const emoPicker = document.getElementById('emo-picker');
 
-        // ================== [신규 기능] 이모티콘 관련 로직 ==================
+        // ==== [신규] 이모티콘 페이징 로직 ====
+        let emoticonFiles = [];
+        let currentEmoPage = 1;
+        const EMO_PER_PAGE = 15; // 한 페이지에 보여줄 이모티콘 갯수 (필요시 조절 가능)
 
-        // 1. 서버에서 이모티콘 목록 가져와서 팝업창 채우기
+        const emoList = document.getElementById('emo-list');
+        const emoPrevBtn = document.getElementById('emo-prev');
+        const emoNextBtn = document.getElementById('emo-next');
+        const emoPageInfo = document.getElementById('emo-page-info');
+
+        // 현재 페이지에 맞는 이모티콘만 화면에 그리는 함수
+        function renderEmoticons() {
+            emoList.innerHTML = ''; // 기존 목록 비우기
+            const totalPages = Math.ceil(emoticonFiles.length / EMO_PER_PAGE) || 1;
+            
+            const startIndex = (currentEmoPage - 1) * EMO_PER_PAGE;
+            const endIndex = Math.min(startIndex + EMO_PER_PAGE, emoticonFiles.length);
+
+            for (let i = startIndex; i < endIndex; i++) {
+                const file = emoticonFiles[i];
+                const img = document.createElement('img');
+                img.src = `/emoticons/${file}`;
+                img.addEventListener('click', () => {
+                    sendMessage('image', `/emoticons/${file}`);
+                    emoPicker.style.display = 'none'; // 전송 후 창 닫기
+                });
+                emoList.appendChild(img);
+            }
+
+            // 하단 페이지 번호 및 버튼 활성화 상태 업데이트
+            emoPageInfo.innerText = `${currentEmoPage} / ${totalPages}`;
+            emoPrevBtn.disabled = currentEmoPage === 1;
+            emoNextBtn.disabled = currentEmoPage === totalPages || totalPages === 0;
+        }
+
+        // 서버에서 이모티콘 전체 목록 가져오기
         fetch('/api/emoticons')
             .then(response => response.json())
             .then(files => {
-                files.forEach(file => {
-                    const img = document.createElement('img');
-                    img.src = `/emoticons/${file}`; // 정적 파일 경로
-                    // 팝업창의 이미지를 클릭했을 때
-                    img.addEventListener('click', () => {
-                        // 'image' 타입으로 메시지 전송
-                        sendMessage('image', `/emoticons/${file}`);
-                        emoPicker.style.display = 'none'; // 팝업 닫기
-                    });
-                    emoPicker.appendChild(img);
-                });
+                emoticonFiles = files;
+                renderEmoticons(); // 첫 페이지 렌더링
             })
-            .catch(err => console.error('이모티콘 목록 로드 실패:', err));
+            .catch(err => console.error('로드 실패:', err));
 
-        // 2. + 버튼 클릭 시 팝업창 열고 닫기 (토글)
+        // [◀] 이전 페이지 버튼
+        emoPrevBtn.addEventListener('click', () => {
+            if (currentEmoPage > 1) {
+                currentEmoPage--;
+                renderEmoticons();
+            }
+        });
+
+        // [▶] 다음 페이지 버튼
+        emoNextBtn.addEventListener('click', () => {
+            const totalPages = Math.ceil(emoticonFiles.length / EMO_PER_PAGE);
+            if (currentEmoPage < totalPages) {
+                currentEmoPage++;
+                renderEmoticons();
+            }
+        });
+
+        // + 버튼 누르면 팝업 열기/닫기
         emoToggleBtn.addEventListener('click', () => {
             emoPicker.style.display = emoPicker.style.display === 'flex' ? 'none' : 'flex';
         });
+        // ===================================
 
-        // =================================================================
-
-        // 통합 메시지 전송 함수 (type: 'text' 또는 'image')
         function sendMessage(type, content) {
             if (!content) return;
-            // 데이터 구조 변경: type 추가
-            socket.emit('chat message', { 
-                type: type,
-                user: myInfo, 
-                content: content 
-            });
+            socket.emit('chat message', { type: type, user: myInfo, content: content });
         }
 
-        // 텍스트 메시지 전송 (엔터 또는 전송 버튼)
         form.addEventListener('submit', function(e) {
             e.preventDefault();
-            sendMessage('text', input.value);
-            input.value = '';
-            emoPicker.style.display = 'none'; // 채팅 치면 팝업 닫기
+            if(input.value.trim() !== "") {
+                sendMessage('text', input.value);
+                input.value = '';
+                emoPicker.style.display = 'none';
+            }
         });
 
-        // 서버로부터 메시지 수신 시 화면 표시
         socket.on('chat message', function(data) {
             const item = document.createElement('li');
             const userIconHtml = data.user.icon ? `<img src="${data.user.icon}" class="user-icon">` : '';
             
             let messageContent = '';
             if (data.type === 'image') {
-                // 이미지 메시지인 경우: 40x40 크기의 이미지 태그 출력
                 messageContent = `<img src="${data.content}" class="chat-emoticon">`;
             } else {
-                // 일반 텍스트인 경우
                 messageContent = data.content;
             }
 
-            // 닉네임은 굵게, 메시지 내용은 그 옆에 표시
             item.innerHTML = `
                 <div>${userIconHtml}<b>[${data.user.nick}]</b>&nbsp;</div>
-                <div>${messageContent}</div>
+                <div style="word-break: break-all;">${messageContent}</div>
             `;
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         });
 
-        // 접속자 목록 갱신 (기존 동일)
         socket.on('user list', function(users) {
             usersList.innerHTML = '';
             users.forEach(user => {

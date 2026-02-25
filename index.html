@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>웹게임 채팅창</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #f4f4f4; }
+        /* 요청하신 500x250 사이즈 맞춤 */
+        #chat-container { width: 500px; height: 250px; display: flex; flex-direction: column; border: 1px solid #ccc; background: white; font-family: 'Malgun Gothic', sans-serif; }
+        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 10px; list-style-type: none; font-size: 13px; }
+        #messages li { padding: 3px 0; border-bottom: 1px dashed #eee; }
+        #form { display: flex; padding: 5px; background: #ddd; }
+        #nickname { width: 70px; padding: 3px; margin-right: 5px; border: 1px solid #ccc; }
+        #input { flex: 1; padding: 3px; border: 1px solid #ccc; }
+        #form button { padding: 3px 10px; background: #333; color: white; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <ul id="messages"></ul>
+        <form id="form" action="">
+            <input id="nickname" placeholder="닉네임" required autocomplete="off" />
+            <input id="input" placeholder="메시지 입력..." required autocomplete="off" />
+            <button>전송</button>
+        </form>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const form = document.getElementById('form');
+        const nickname = document.getElementById('nickname');
+        const input = document.getElementById('input');
+        const messages = document.getElementById('messages');
+
+        // 전송 버튼 누를 때
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (input.value && nickname.value) {
+                // 서버로 닉네임과 메시지 묶어서 보내기
+                socket.emit('chat message', { name: nickname.value, msg: input.value });
+                input.value = '';
+            }
+        });
+
+        // 서버에서 메시지가 오면 화면에 추가하기
+        socket.on('chat message', function(data) {
+            const item = document.createElement('li');
+            // IRC 스타일처럼 [닉네임] 메시지 형태
+            item.innerHTML = `<b>[${data.name}]</b> ${data.msg}`;
+            messages.appendChild(item);
+            // 채팅창 맨 아래로 스크롤
+            messages.scrollTop = messages.scrollHeight;
+        });
+    </script>
+</body>
+</html>

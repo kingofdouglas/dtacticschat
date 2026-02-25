@@ -9,13 +9,14 @@
         #wrapper { display: flex; width: 100%; height: 100%; background: #2e2e2e; position: relative; }
         #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #1f1f1f; }
         
-        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 13px; line-height: 1.25; color: #ddd; }
+        /* ==== [수정] 폰트 사이즈 13px -> 12px ==== */
+        #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 12px; line-height: 1.25; color: #ddd; }
         
         #messages li { padding: 2px 4px; margin-bottom: 2px; word-break: break-all; border-radius: 4px; transition: background-color 0.1s; position: relative; } 
         #messages li:hover { background-color: #3d3d3d; }
         
-        /* ==== [수정] 수직 정렬 강제 통일 ==== */
-        .user-icon { width: 14px; height: 14px; margin-right: 3px; vertical-align: text-bottom; border-radius: 2px; }
+        /* ==== [수정] 아이콘 크기 11x11 ==== */
+        .user-icon { width: 11px; height: 11px; margin-right: 3px; vertical-align: text-bottom; border-radius: 2px; }
         .my-nickname, .other-nickname, .msg-text, .clickable-nick, .whisper-msg { vertical-align: baseline; }
         
         .my-nickname { color: #5dade2; font-weight: bold; }   
@@ -32,7 +33,9 @@
         #form { display: flex; padding: 0 4px; background: #3a3a3a; align-items: center; height: 28px; border: none; }
         #emo-toggle-btn { width: 24px; height: 100%; background: transparent; border: none; color: #aaa; cursor: pointer; font-weight: bold; font-size: 16px; padding: 0; display: flex; align-items: center; justify-content: center; }
         #emo-toggle-btn:hover { color: #fff; }
-        #input { flex: 1; padding: 0 4px; background: transparent; border: none; color: #eee; height: 100%; font-size: 13px; outline: none; }
+        
+        /* ==== [수정] 입력창 폰트 사이즈 13px -> 12px ==== */
+        #input { flex: 1; padding: 0 4px; background: transparent; border: none; color: #eee; height: 100%; font-size: 12px; outline: none; }
         #input::placeholder { color: #888; font-weight: bold; } 
         #form button[type="submit"] { padding: 0 8px; height: 100%; background: transparent; color: #999; border: none; cursor: pointer; font-size: 12px; font-weight: bold; }
         #form button[type="submit"]:hover { color: #fff; }
@@ -53,7 +56,9 @@
 
         #user-list-container { width: 130px; display: flex; flex-direction: column; background: #2e2e2e; }
         #user-list-header { display: none; } 
-        #users { flex: 1; overflow-y: auto; margin: 0; padding: 5px; list-style-type: none; font-size: 13px; color: #ddd; }
+        
+        /* ==== [수정] 유저 목록 폰트 사이즈 13px -> 12px ==== */
+        #users { flex: 1; overflow-y: auto; margin: 0; padding: 5px; list-style-type: none; font-size: 12px; color: #ddd; }
         #users li { padding: 3px 2px; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         #time-tooltip {
@@ -251,24 +256,55 @@
         }
 
         let tooltipTimeout;
+        let mouseX = 0;
+        let mouseY = 0;
+
+        // ==== [신규] 툴팁 스마트 포지셔닝 함수 ====
+        function updateTooltipPosition() {
+            const ttWidth = timeTooltip.offsetWidth;
+            const ttHeight = timeTooltip.offsetHeight;
+            const winWidth = window.innerWidth;
+            const winHeight = window.innerHeight;
+
+            let left = mouseX + 12;
+            let top = mouseY + 15; // 기본적으로 마우스 아래에 위치
+
+            // 마우스 아래쪽 공간이 부족할 경우 위쪽으로 띄움
+            if (top + ttHeight > winHeight) {
+                top = mouseY - ttHeight - 10;
+                if (top < 0) top = 5; // 위쪽 공간도 부족할 경우 대비
+            }
+            
+            // 오른쪽 화면 밖으로 넘어갈 경우 방지
+            if (left + ttWidth > winWidth) {
+                left = winWidth - ttWidth - 10;
+            }
+
+            timeTooltip.style.left = left + 'px';
+            timeTooltip.style.top = top + 'px';
+        }
+
+        messages.addEventListener('mousemove', (e) => {
+            mouseX = e.pageX;
+            mouseY = e.pageY;
+            if (timeTooltip.style.display === 'block') {
+                updateTooltipPosition();
+            }
+        });
 
         messages.addEventListener('mouseover', (e) => {
             const li = e.target.closest('li');
             if (li && li.hasAttribute('data-time')) {
-                const sendId = li.getAttribute('data-sendid') || '알 수 없음';
+                // 아이디 대신 닉네임을 가져오도록 수정
+                const sendNick = li.getAttribute('data-nick') || '알 수 없음';
                 const timeStr = formatTimeDiff(parseInt(li.getAttribute('data-time')));
                 
+                // 지연 시간을 0.7초(700ms)로 수정
                 tooltipTimeout = setTimeout(() => {
-                    timeTooltip.innerText = `${sendId} ${timeStr}`;
+                    timeTooltip.innerText = `${sendNick} ${timeStr}`;
                     timeTooltip.style.display = 'block';
-                }, 300);
-            }
-        });
-
-        messages.addEventListener('mousemove', (e) => {
-            if (timeTooltip.style.display === 'block') {
-                timeTooltip.style.left = (e.pageX + 10) + 'px';
-                timeTooltip.style.top = (e.pageY + 10) + 'px';
+                    updateTooltipPosition(); // 창이 뜰 때 즉시 위치 조정
+                }, 700);
             }
         });
 
@@ -291,7 +327,6 @@
             messages.innerHTML = ''; 
         });
 
-        // ==== [수정] 자바스크립트 템플릿의 줄바꿈(엔터) 공백을 완전히 제거하여 한 줄로 밀착 ====
         socket.on('whisper', (data) => {
             const item = document.createElement('li');
             const isMe = (data.user.nick === myInfo.nick);
@@ -299,14 +334,14 @@
             const nickClass = isMe ? 'my-nickname' : 'other-nickname';
 
             item.setAttribute('data-time', Date.now());
-            item.setAttribute('data-sendid', data.user.id);
+            // 툴팁에서 닉네임을 사용하기 위해 data-nick 속성 추가
+            item.setAttribute('data-nick', data.user.nick);
 
             item.innerHTML = `<span class="whisper-msg">${prefix}</span> <span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> <span class="msg-text">${data.content}</span>`;
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         });
 
-        // ==== [수정] 자바스크립트 템플릿의 줄바꿈(엔터) 공백을 완전히 제거하여 한 줄로 밀착 ====
         socket.on('chat message', function(data) {
             const item = document.createElement('li');
             const userIconHtml = data.user.icon ? `<img src="${data.user.icon}" class="user-icon">` : '';
@@ -315,7 +350,8 @@
             const nickClass = isMe ? 'my-nickname' : 'other-nickname';
 
             item.setAttribute('data-time', Date.now());
-            item.setAttribute('data-sendid', data.user.id);
+            // 툴팁에서 닉네임을 사용하기 위해 data-nick 속성 추가
+            item.setAttribute('data-nick', data.user.nick);
 
             item.innerHTML = `${userIconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> <span class="msg-text">${data.content}</span>`;
             messages.appendChild(item);

@@ -60,7 +60,24 @@
 
         /* 툴팁 */
         #time-tooltip { position: absolute; background: rgba(0, 0, 0, 0.85); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; z-index: 9999; display: none; white-space: nowrap; }
-
+            
+                #btn-go-admin {
+            background: none;      /* 배경 제거 */
+            border: none;          /* 테두리 제거 */
+            font-size: 20px;       /* 아이콘 크기 조절 */
+            cursor: pointer;      /* 마우스 커서 손가락 모양 */
+            padding: 0 5px;        /* 간격 조절 */
+            display: none;         /* 기본은 숨김 (관리자 인증 시 노출) */
+            vertical-align: middle; /* 전송 버튼과 높이 맞춤 */
+            transition: transform 0.2s; /* 부드러운 효과 */
+            outline: none;         /* 클릭 시 생기는 파란 테두리 제거 */
+        }
+        
+        #btn-go-admin:hover {
+            transform: rotate(45deg); /* 마우스 올리면 살짝 회전하는 효과 (선택사항) */
+            opacity: 0.8;             /* 살짝 투명하게 */
+        }
+        
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #4a4a4a; }
     </style>
@@ -98,7 +115,7 @@
     <button id="emo-toggle-btn" type="button">+</button>
     <input id="input" placeholder="채팅.." autocomplete="off" />
     <button type="submit">전송</button>
-    <button id="btn-go-admin" type="button" style="display:none; font-size:16px; margin-left:5px; cursor:pointer;">⚙️</button>
+    <button id="btn-go-admin" type="button">⚙️</button>
 </form>
         </div>
         <div id="resizer"></div>
@@ -385,6 +402,7 @@
     </script>
 </body>
 </html>
+
 
 
 

@@ -297,45 +297,48 @@ io.on('connection', async (socket) => {
         socket.emit('system message', `[알림] ${target.nick}님에 대한 신고가 접수되었습니다.`);
     });
 
-// E. 귓속말 (완벽 픽스)
-    socket.on('whisper', (data) => {
-        let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
+        // E. 귓속말
+            socket.on('whisper', (data) => {
+                let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
+                
+                if (targetSocketId) {
+                    const targetUser = connectedUsers[targetSocketId];
+                    
+                    // 🚨 귓속말 거부 상태 체크 (settings 객체가 없으면 기본값 true로 간주)
+                    const isWhisperAllowed = targetUser.settings ? targetUser.settings.whisper : true;
+                    
+                    if (!isWhisperAllowed) {
+                        return socket.emit('system message', `[안내] ${data.targetNick}님은 귓속말을 거부하고 있습니다.`);
+                    }
         
-        if (targetSocketId) {
-            const targetUser = connectedUsers[targetSocketId];
-            
-            // 🚨 귓속말 거부 상태 체크 (보낸 사람에게 거부당했다고 알림)
-            if (targetUser.settings && targetUser.settings.whisper === false) {
-                // 발신자(socket)에게만 시스템 메시지 전송
-                return socket.emit('system message', `[안내] ${data.targetNick}님은 귓속말을 거부하고 있습니다.`);
-            }
-
-            const whisperData = { ...data, timestamp: Date.now() };
-            io.to(targetSocketId).emit('whisper', whisperData); // 대상에게 보냄
-            socket.emit('whisper', whisperData); // 나 자신에게도 표시
-        } else {
-            socket.emit('system message', '현재 접속해 있지 않은 유저입니다.');
-        }
-    });
-
-    // F. 호출 (완벽 픽스)
-    socket.on('call user', (data) => {
-        let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
+                    const whisperData = { ...data, timestamp: Date.now() };
+                    io.to(targetSocketId).emit('whisper', whisperData); 
+                    socket.emit('whisper', whisperData); 
+                } else {
+                    socket.emit('system message', '현재 접속해 있지 않은 유저입니다.');
+                }
+            });
         
-        if (targetSocketId) {
-            const targetUser = connectedUsers[targetSocketId];
-            
-            // 🚨 알림(호출) 거부 상태 체크 (보낸 사람에게 알림)
-            if (targetUser.settings && targetUser.settings.notify === false) {
-                return socket.emit('system message', `[안내] ${data.targetNick}님은 알람(호출)을 거부하고 있습니다.`);
-            }
-
-            io.to(targetSocketId).emit('call alert', { sender: data.sender });
-            socket.emit('system message', `[안내] ${data.targetNick}님을 호출했습니다.`);
-        } else {
-            socket.emit('system message', '[안내] 접속 중인 유저가 아닙니다.');
-        }
-    });
+            // F. 호출
+            socket.on('call user', (data) => {
+                let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
+                
+                if (targetSocketId) {
+                    const targetUser = connectedUsers[targetSocketId];
+                    
+                    // 🚨 알림(호출) 거부 상태 체크
+                    const isNotifyAllowed = targetUser.settings ? targetUser.settings.notify : true;
+                    
+                    if (!isNotifyAllowed) {
+                        return socket.emit('system message', `[안내] ${data.targetNick}님은 알람(호출)을 거부하고 있습니다.`);
+                    }
+        
+                    io.to(targetSocketId).emit('call alert', { sender: data.sender });
+                    socket.emit('system message', `[안내] ${data.targetNick}님을 호출했습니다.`);
+                } else {
+                    socket.emit('system message', '[안내] 접속 중인 유저가 아닙니다.');
+                }
+            });
 
     // G. 관리자 전용 제어 (Mute 수정본)
 socket.on('mute user', (target) => { 

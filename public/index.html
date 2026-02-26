@@ -554,7 +554,26 @@
                 usersUl.style.display = 'block';
             }
         };
+        // 🚨 자바스크립트 에러 발생 시 자동 재접속(새로고침) 로직
+        let errorReloadCount = parseInt(sessionStorage.getItem('err_reload_count') || '0');
+        
+        // 무한 새로고침 방지: 연속 3번 이상 에러로 재시작되면 일단 멈춤
+        if (errorReloadCount < 3) {
+            window.addEventListener('error', function(e) {
+                console.error("클라이언트 오류 발생, 재접속을 시도합니다:", e);
+                if (!isBannedState) {
+                    sessionStorage.setItem('err_reload_count', errorReloadCount + 1);
+                    setTimeout(() => location.reload(), 2000); // 2초 뒤 새로고침
+                }
+            });
+            
+            // 접속 후 10초 동안 에러가 안 나면 아주 정상적인 상태이므로 에러 카운트 초기화
+            setTimeout(() => {
+                sessionStorage.setItem('err_reload_count', '0');
+            }, 10000);
+        }
     </script>
 </body>
 </html>
+
 

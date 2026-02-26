@@ -245,7 +245,7 @@ io.on('connection', async (socket) => {
         socket.emit('system message', `[알림] ${target.nick}님에 대한 신고가 접수되었습니다.`);
     });
 
-    ocket.on('whisper', (data) => { 
+    socket.on('whisper', (data) => { 
         let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
         
         const whisperData = { 

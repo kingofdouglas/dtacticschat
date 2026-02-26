@@ -37,6 +37,7 @@ const Chat = mongoose.model('Chat', new mongoose.Schema({
     user: Object, // { id, nick, icon }
     ip: String,   // [추가] 채팅 작성자의 IP 저장
     content: String,
+    targetNick: String, // 🚨 오프라인 귓속말을 위해 타겟 닉네임 추가
     timestamp: { type: Date, default: Date.now, expires: 2592000 }
 }));
 // 개인설정 저장
@@ -232,12 +233,15 @@ io.on('connection', async (socket) => {
         
         if (ADMIN_IDS.includes(userData.id)) socket.emit('admin auth', true);
     
-        Chat.find().sort({ timestamp: -1 }).limit(30).then(history => {
+        Chat.find({
+            $or: [
+                { type: { $ne: 'whisper' } }, // 일반 채팅 (text, image)
+                { type: 'whisper', targetNick: finalNick }, // 남이 나에게 보낸 귓말
+                { type: 'whisper', 'user.nick': finalNick } // 내가 남에게 보낸 귓말
+            ]
+        }).sort({ timestamp: -1 }).limit(30).then(history => {
             if (history.length > 0) socket.emit('chat history', history.reverse()); 
         }).catch(err => console.error("채팅 로딩 에러:", err));
-        
-        io.emit('user list', getUserListWithAdminStatus());
-    });
 
     // --- [추가됨] 클라이언트가 설정을 바꿨을 때 DB 갱신 ---
     socket.on('update settings', async (settings) => {
@@ -297,26 +301,36 @@ io.on('connection', async (socket) => {
         socket.emit('system message', `[알림] ${target.nick}님에 대한 신고가 접수되었습니다.`);
     });
 
-        // E. 귓속말
-            socket.on('whisper', (data) => {
+            // E. 귓속말 (오프라인 지원 완벽 픽스)
+            socket.on('whisper', async (data) => {
                 let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
                 
+                // 1. DB에 귓속말 우선 저장 (상대방이 오프라인이어도 나중에 볼 수 있도록)
+                const whisperData = { 
+                    type: 'whisper', 
+                    user: data.user, 
+                    targetNick: data.targetNick,
+                    content: data.content,
+                    timestamp: Date.now() 
+                };
+                try { await Chat.create(whisperData); } catch(e) { console.error("귓말 저장 에러:", e); }
+        
                 if (targetSocketId) {
                     const targetUser = connectedUsers[targetSocketId];
                     
-                    // 🚨 귓속말 거부 상태 체크 (settings 객체가 없으면 기본값 true로 간주)
-                    const isWhisperAllowed = targetUser.settings ? targetUser.settings.whisper : true;
-                    
-                    if (!isWhisperAllowed) {
+                    // 🚨 귓속말 거부 상태 체크 
+                    if (targetUser.settings && targetUser.settings.whisper === false) {
                         return socket.emit('system message', `[안내] ${data.targetNick}님은 귓속말을 거부하고 있습니다.`);
                     }
         
-                    const whisperData = { ...data, timestamp: Date.now() };
                     io.to(targetSocketId).emit('whisper', whisperData); 
-                    socket.emit('whisper', whisperData); 
                 } else {
-                    socket.emit('system message', '현재 접속해 있지 않은 유저입니다.');
+                    // 접속하지 않은 유저에게도 DB에는 남겼음을 알림
+                    socket.emit('system message', `[안내] ${data.targetNick}님은 현재 오프라인입니다. (메시지는 남겨집니다)`);
                 }
+                
+                // 나 자신에게도 표시
+                socket.emit('whisper', whisperData); 
             });
         
             // F. 호출

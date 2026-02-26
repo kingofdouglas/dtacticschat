@@ -209,7 +209,7 @@ io.on('connection', async (socket) => {
             u.id === userData.id || u.ip === clientIp
         ).length;
     
-        if (duplicates > 0) finalNick = `${userData.nick} (${duplicates})`;
+        if (duplicates > 0) finalNick = `${userData.nick}_(${duplicates})`;
         const finalUserData = { ...userData, nick: finalNick, ip: clientIp };
         
         // --- [추가됨] DB에서 유저 설정 불러오기 ---

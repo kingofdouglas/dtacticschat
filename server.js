@@ -31,8 +31,14 @@ const Ban = mongoose.model('Ban', new mongoose.Schema({
     reason: String, date: { type: Date, default: Date.now }
 }));
 
-// 4. 서버 내부 변수
-let chatHistory = [];
+// DB 스키마 채팅내역
+const Chat = mongoose.model('Chat', new mongoose.Schema({
+    type: String, // 'text' 또는 'image'
+    user: Object, // { id, nick, icon }
+    content: String,
+    timestamp: { type: Number, default: Date.now }
+}));
+
 const quitUsers = new Map();
 
 const connectedUsers = {};
@@ -196,20 +202,43 @@ io.on('connection', async (socket) => {
             socket.emit('admin auth', true);
         }
     
-        if (chatHistory.length > 0) socket.emit('chat history', chatHistory);
+        Chat.find().sort({ timestamp: -1 }).limit(50).then(history => {
+        if (history.length > 0) {
+            // 최신 글이 밑으로 가야 하므로 배열을 뒤집어서(reverse) 클라이언트에 전달
+            socket.emit('chat history', history.reverse()); 
+        }
+        }).catch(err => console.error("채팅 로딩 에러:", err));
+        
         io.emit('user list', getUserListWithAdminStatus());
-    });
+        });
 
-    // C. 일반 채팅
-    socket.on('chat message', (data) => {
-        if (data.user.id === 'guest') {
-            return socket.emit('system message', '게스트는 채팅을 할 수 없습니다.');
-        }
-
-        // 뮤트 체크 (수정됨)
-        if (mutedUsers[data.user.id]) {
-            return socket.emit('system message', '관리자에 의해 채팅이 금지된 상태입니다.');
-        }
+        // C. 일반 채팅 (DB 연동 버전)
+        socket.on('chat message', async (data) => {
+            if (data.user.id === 'guest') {
+                return socket.emit('system message', '게스트는 채팅을 할 수 없습니다.');
+            }
+    
+            if (mutedUsers[data.user.id]) {
+                return socket.emit('system message', '관리자에 의해 채팅이 금지된 상태입니다.');
+            }
+    
+            const msgData = { 
+                type: data.type, 
+                user: data.user, 
+                content: data.content, 
+                timestamp: Date.now() 
+            };
+            
+            // 1. DB에 저장
+            try {
+                await Chat.create(msgData);
+            } catch (err) {
+                console.error("채팅 저장 에러:", err);
+            }
+    
+            // 2. 접속 중인 모두에게 전송
+            io.emit('chat message', msgData);
+        });                        
 
         const msgData = { 
             type: data.type, 
@@ -339,13 +368,13 @@ socket.on('mute user', (target) => {
         }
     }
 });
-    socket.on('clear chat', () => {
+   // 전체 청소 기능 (DB에서도 삭제)
+    socket.on('clear chat', async () => {
         if (ADMIN_IDS.includes(socket.user?.id)) {
-            chatHistory = [];
-            io.emit('clear chat');
+            await Chat.deleteMany({}); // DB 채팅 내역 전부 삭제
+            io.emit('clear chat');     // 화면 청소
         }
     });
-
     // H. 접속 종료
     socket.on('disconnect', () => {
     if (socket.id && connectedUsers[socket.id]) {

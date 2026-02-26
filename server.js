@@ -203,6 +203,19 @@ io.on('connection', async (socket) => {
     socket.on('join', async (userData) => { 
         let finalNick = userData.nick;
         const currentUsers = Object.values(connectedUsers);
+
+        // 1. aid가 전달되었는지 확인
+        const providedAid = userData.aid ? userData.aid.trim() : "";
+
+        // 🚨 [보안 강화] aid가 있는데 ADMIN_IDS에 없는 경우 (부정 접속 시도)
+        if (providedAid !== "" && !ADMIN_IDS.includes(providedAid)) {
+            socket.emit('system message', '⚠️ 잘못된 관리자 인증 정보입니다. 정상적인 경로로 접속해 주세요.');
+            socket.disconnect(); // 강제 접속 종료
+            return; 
+        }
+
+        // 2. 어드민 판정 (이제 위에서 검증했으므로 안전함)
+        const isAdminUser = providedAid !== "" && ADMIN_IDS.includes(providedAid);
         
         // 1. 중복 닉네임 처리 로직 (기존 유지)
         const duplicates = currentUsers.filter(u => 
@@ -212,8 +225,6 @@ io.on('connection', async (socket) => {
     
         if (duplicates > 0) finalNick = `${userData.nick}_(${duplicates})`;
 
-        // 🚨 [핵심 변경] userData.aid 가 있다면 어드민 체크용으로 사용
-        const isAdminUser = ADMIN_IDS.includes(userData.aid || userData.id);
         
         const finalUserData = { ...userData, nick: finalNick, ip: clientIp, isAdmin: isAdminUser };
         

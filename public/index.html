@@ -145,10 +145,6 @@
         const callCooldowns = {};
 
         socket.emit('join', myInfo);
-        socket.on('connect', () => {
-            document.getElementById('messages').innerHTML = ''; // 화면 한 번 싹 비우기
-            socket.emit('join', myInfo); // 접속/재접속할 때마다 확실하게 입장 신고!
-        });
         socket.on('admin auth', () => { isAdmin = true; });
 
         const messages = document.getElementById('messages');
@@ -591,6 +587,7 @@
     </script>
 </body>
 </html>
+
 
 
 

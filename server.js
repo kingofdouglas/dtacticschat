@@ -159,7 +159,6 @@ app.get('/api/emoticons', (req, res) => {
 // --- Socket.io ---
 io.on('connection', async (socket) => {
     
-    // 🚨 [수정됨] Render 서버 내부 IP(Proxy) 대응을 위해 IP를 더 정확히 가져옵니다.
     let clientIp = socket.handshake.headers['x-forwarded-for'] || 
                    socket.handshake.headers['x-real-ip'] || 
                    socket.handshake.address || 
@@ -183,8 +182,6 @@ io.on('connection', async (socket) => {
         let finalNick = userData.nick;
         const currentUsers = Object.values(connectedUsers);
         
-        // 🚨 [수정됨] 회원님 말씀대로 IP 중복 검사 복구! 
-        // 단, Render 서버 자체 내부 IP(10.x.x.x)나 오류(unknown)일 때는 제외하여 무고한 유저가 묶이는 걸 방지합니다.
         const duplicates = currentUsers.filter(u => 
             u.id === userData.id || 
             (u.ip === clientIp && clientIp !== "unknown" && !clientIp.startsWith("10.") && !clientIp.startsWith("127."))

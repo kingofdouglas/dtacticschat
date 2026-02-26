@@ -209,14 +209,15 @@
 
         socket.on('chat history', (h) => h.forEach(d => displayMessage(d)));
         socket.on('chat message', (d) => displayMessage(d));
+        
         socket.on('whisper', (d) => {
-
             const replyTarget = (d.user.nick === myNick) ? d.targetNick : d.user.nick;
             const prefixText = (d.user.nick === myNick) ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
 
             const prefixHtml = `<span class="reply-btn" data-nick="${replyTarget}" style="cursor: pointer; text-decoration: underline;" title="답장하기">${prefixText}</span>`;
             displayMessage(d, true, prefixHtml);
         });
+
         socket.on('call alert', (data) => {
             document.getElementById('call-sound').play().catch(() => {});
             const item = document.createElement('li');
@@ -224,12 +225,14 @@
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         });
+        
         socket.on('system message', (msg) => {
             const item = document.createElement('li');
             item.innerHTML = `<span class="system-msg">${msg}</span>`;
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         });
+        
         socket.on('clear chat', () => { messages.innerHTML = ''; });
         
         let isBannedState = false; 
@@ -290,17 +293,19 @@
             document.body.innerHTML = ""; 
             window.stop(); 
         });
+
+        // 🚨 구조 완벽 정리 & 스마트 팝업 위치 & 답장하기 클릭 
         document.addEventListener('click', (e) => {
-            // 🚨 추가: [From 닉네임] 글자를 눌렀을 때 즉시 답장 폼 채우기
+            
+            // 1. 답장 기능
             if (e.target.classList.contains('reply-btn')) {
                 const targetNick = e.target.getAttribute('data-nick');
-                input.value = `/w "${targetNick}" `; // 입력창에 귓말 명령어 세팅
-                input.focus(); // 즉시 커서 활성화
+                input.value = `/w "${targetNick}" `;
+                input.focus(); 
                 return;
             }
-        // 🚨 닫기 버튼 삭제 및 외부 클릭 시 닫히도록 완벽 구현
-        document.addEventListener('click', (e) => {
-            // 유저 팝업 처리
+
+            // 2. 유저 팝업 처리 (스마트 위치 계산 적용)
             if (e.target.classList.contains('clickable-nick')) {
                 const nick = e.target.getAttribute('data-nick');
                 const id = e.target.getAttribute('data-id');
@@ -329,39 +334,33 @@
                     adminControls.style.display = 'none';
                 }
 
-                userPopup.style.display = 'flex'; // 먼저 화면에 띄워야 크기를 계산할 수 있음
+                // 팝업을 먼저 띄워야 크기를 알 수 있음
+                userPopup.style.display = 'flex'; 
 
-                // 1. 팝업의 실제 너비와 높이 가져오기
+                // 스마트 위치 계산 시작
                 const popWidth = userPopup.offsetWidth;
                 const popHeight = userPopup.offsetHeight;
 
-                // 2. 가로 위치 계산 (오른쪽 벽에 부딪히면 마우스 왼쪽으로 배치)
                 let posX = e.pageX + 10;
-                if (posX + popWidth > window.innerWidth) {
-                    posX = e.pageX - popWidth - 5;
-                }
+                if (posX + popWidth > window.innerWidth) posX = e.pageX - popWidth - 5;
 
-                // 3. 세로 위치 계산 (아래쪽 벽에 부딪히면 마우스 위쪽으로 배치)
                 let posY = e.pageY + 10;
-                if (posY + popHeight > window.innerHeight) {
-                    posY = e.pageY - popHeight - 5;
-                }
+                if (posY + popHeight > window.innerHeight) posY = e.pageY - popHeight - 5;
 
-                // 4. (예외 처리) 아이프레임이 너무 작아서 위로 올렸는데도 천장을 뚫는 경우 방어
-                posY = Math.max(0, posY);
                 posX = Math.max(0, posX);
+                posY = Math.max(0, posY);
 
-                // 5. 최종 위치 적용
                 userPopup.style.left = posX + 'px';
                 userPopup.style.top = posY + 'px';
+
             } else if (!userPopup.contains(e.target)) {
                 userPopup.style.display = 'none';
             }
             
-            // 이모티콘 팝업 닫기
+            // 3. 이모티콘 팝업 닫기
             if (!emoPicker.contains(e.target) && e.target.id !== 'emo-toggle-btn') emoPicker.style.display = 'none';
             
-            // 🔥 개인 설정 모달 닫기 (모달 밖 클릭 시)
+            // 4. 개인 설정 모달 닫기
             if (userSettingsModal.style.display === 'block' && 
                 !userSettingsModal.contains(e.target) && 
                 e.target !== btnUserSetup) {
@@ -374,9 +373,9 @@
             userPopup.style.display = 'none';
         };
 
-        // 🚨 띄어쓰기 닉네임을 위한 따옴표 파싱 적용
+        // 🚨 띄어쓰기/언더바 닉네임 완벽 대응 (쌍따옴표 포장)
         document.getElementById('btn-whisper').onclick = () => { 
-            input.value = `/w "${selectedUser.nick}" `; // 따옴표 추가
+            input.value = `/w "${selectedUser.nick}" `; 
             input.focus(); 
             userPopup.style.display='none'; 
         };
@@ -455,7 +454,6 @@
         document.getElementById('emo-prev').onclick = () => { if(pg>1){ pg--; drawEmos(); } };
         document.getElementById('emo-next').onclick = () => { if(pg < Math.ceil(emos.length/10)){ pg++; drawEmos(); } };
 
-        // 🚨 띄어쓰기 닉네임 파싱 로직 적용
         document.getElementById('form').onsubmit = (e) => {
             e.preventDefault();
             const val = input.value.trim();
@@ -465,7 +463,6 @@
                 let targetNick = "";
                 let content = "";
                 
-                // 따옴표로 묶인 경우 (팝업에서 버튼 눌렀을 때 대응)
                 if (val.startsWith('/w "')) {
                     const endQuoteIdx = val.indexOf('"', 4);
                     if (endQuoteIdx !== -1) {
@@ -473,7 +470,6 @@
                         content = val.substring(endQuoteIdx + 1).trim();
                     }
                 } else {
-                    // 수동으로 그냥 쳤을 때 (기존 방식)
                     const p = val.split(' ');
                     targetNick = p[1];
                     content = p.slice(2).join(' ');
@@ -495,7 +491,7 @@
         resizer.addEventListener('mousedown', () => { 
             isResizing = true; 
             document.body.style.userSelect = 'none'; 
-            userListCont.style.transition = 'none'; 
+            userListCont.style.transition = 'none'; // 애니메이션 제거
         });
         document.addEventListener('mousemove', (e) => {
             if (isResizing) {
@@ -507,7 +503,7 @@
         document.addEventListener('mouseup', () => { 
             isResizing = false; 
             document.body.style.userSelect = 'auto'; 
-            userListCont.style.transition = '';
+            userListCont.style.transition = ''; // 애니메이션 복구
         });
 
         let mouseX, mouseY, tooltipTimeout;
@@ -561,4 +557,3 @@
     </script>
 </body>
 </html>
-

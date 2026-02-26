@@ -46,7 +46,8 @@
         .admin-row { display: flex; align-items: center; justify-content: center; padding: 2px 0; }
         .admin-row button { width: auto !important; padding: 3px 8px !important; display: inline-block !important; }
         .admin-divider { color: #666; font-size: 10px; margin: 0 2px; }
-        .notice-msg { text-align: center; color: #ffd32a; font-weight: bold; font-size: 13px; margin: 10px 0; padding: 6px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid #444; }
+        .notice-msg { text-align: center; color: #f1c40f; font-size: 13px; margin: 8px 0;font-weight: bold;
+        }
         #user-list-container {  width: 160px; display: flex; flex-direction: column; background: #2e2e2e; transition: width 0.2s ease-in-out; overflow: hidden; }
         #user-count-header { padding: 2px 0; font-size: 13px;  color: #ddd; background: transparent; border-bottom: 1px solid #1f1f1f; text-align: center; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center;gap: 5px;min-height: 10px; white-space: nowrap;}
         #users {  flex: 1; overflow-y: auto; list-style: none; padding: 3px 3px;  margin: 0; font-size: 12px; color: #ddd;}
@@ -257,7 +258,8 @@
         socket.on('notice message', (msg) => {
             if (!msg) return;
             const item = document.createElement('li');
-            item.innerHTML = `<div class="notice-msg">📢 ${msg}</div>`;
+            item.className = 'notice-msg';
+            item.innerText = `📢 ${msg}`; 
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         });
@@ -592,6 +594,7 @@
     </script>
 </body>
 </html>
+
 
 
 

@@ -208,7 +208,7 @@ io.on('connection', async (socket) => {
         // 1. aid 추출 및 보안 검증
         const providedAid = userData.aid ? userData.aid.trim() : "";
         if (providedAid !== "" && !ADMIN_IDS.includes(providedAid)) {
-            socket.emit('system message', '⚠️ 잘못된 관리자 인증 정보입니다.');
+            socket.emit('system message', '⚠️ 잘못된 접근 입니다.');
             socket.disconnect();
             return; 
         }

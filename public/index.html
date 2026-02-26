@@ -21,10 +21,18 @@
         #resizer { width: 5px; cursor: col-resize; background: #1f1f1f; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
         #resizer:hover { background: #4a90e2; }
         #resizer::after { content: "⋮"; color: #666; font-size: 14px; font-weight: bold; }
+        
         #form { display: flex; padding: 0 4px; background: #3a3a3a; align-items: center; height: 30px; }
         #emo-toggle-btn { width: 26px; height: 100%; background: transparent; border: none; color: #aaa; cursor: pointer; font-size: 18px; }
-        #input { flex: 1; padding: 0 4px; background: transparent; border: none; color: #eee; height: 100%; font-size: 13px; outline: none; }
-        #form button[type="submit"] { background: transparent; color: #999; border: none; cursor: pointer; font-weight: bold; }
+        #input { flex: 1; padding: 0 4px; background: transparent; border: none; color: #eee; height: 100%; font-size: 13px; outline: none; min-width: 0; }
+        #form button[type="submit"] { background: transparent; color: #999; border: none; cursor: pointer; font-weight: bold; white-space: nowrap;}
+        
+        /* 🚨 추가된 귓속말 UI 스타일 */
+        #whisper-tag { display: none; align-items: center; background: #e0e0e0; color: #333; padding: 0 6px; margin: 0 4px; border-radius: 3px; font-size: 11px; font-weight: bold; white-space: nowrap; height: 20px; }
+        #whisper-target-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; }
+        #whisper-cancel { margin-left: 6px; cursor: pointer; color: #888; font-weight: bold; font-size: 12px; padding-bottom: 1px; }
+        #whisper-cancel:hover { color: #d63031; }
+
         #emo-picker { position: absolute; bottom: 32px; left: 4px; width: 185px; background: #333; border: 1px solid #111; display: none; flex-direction: column; z-index: 100; }
         #emo-list { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 4px; height: 75px; overflow: hidden; }
         #emo-list img { width: 34px; height: 34px; cursor: pointer; }
@@ -91,6 +99,12 @@
 
             <form id="form" onsubmit="return false;">
                 <button id="emo-toggle-btn" type="button">+</button>
+                
+                <div id="whisper-tag">
+                    <span id="whisper-target-name"></span>
+                    <span id="whisper-cancel" title="귓속말 취소">x</span>
+                </div>
+
                 <input id="input" placeholder="채팅.." autocomplete="off" />
                 <button type="submit">전송</button>
                 <button id="btn-user-setup" type="button" title="내 설정">⚙️</button>
@@ -124,12 +138,27 @@
         const localMutedIds = new Set();
         const callCooldowns = {};
 
-        // 🚨 [수정됨] 접속/재접속 시 자동으로 화면 정리 후 채팅 내역을 부드럽게 불러옵니다.
-        socket.on('connect', () => {
-            document.getElementById('messages').innerHTML = ''; 
-            socket.emit('join', myInfo); 
-        });
+        // 🚨 추가됨: 현재 귓속말 중인 타겟 저장 변수
+        let activeWhisperTarget = null;
+        const whisperTag = document.getElementById('whisper-tag');
+        const whisperTargetName = document.getElementById('whisper-target-name');
 
+        // 🚨 추가됨: 귓속말 모드 활성화 함수
+        function setWhisperMode(targetNick) {
+            activeWhisperTarget = targetNick;
+            whisperTargetName.innerText = targetNick;
+            whisperTag.style.display = 'flex';
+            document.getElementById('input').focus();
+        }
+
+        // 🚨 추가됨: x 버튼 클릭 시 귓속말 모드 해제
+        document.getElementById('whisper-cancel').onclick = () => {
+            activeWhisperTarget = null;
+            whisperTag.style.display = 'none';
+            document.getElementById('input').focus();
+        };
+
+        socket.emit('join', myInfo); 
         socket.on('admin auth', () => { isAdmin = true; });
 
         const messages = document.getElementById('messages');
@@ -181,7 +210,6 @@
             };
         }
 
-        // 🚨 [수정됨] 과거 귓속말 기록도 깔끔하게 렌더링되도록 수정
         socket.on('chat history', (h) => {
             document.getElementById('messages').innerHTML = ''; 
             h.forEach(d => {
@@ -267,16 +295,16 @@
         });
 
         socket.on('banned user', function(data) {
-            socket.disconnect(); // 강제 접속 해제
+            socket.disconnect();
             document.body.innerHTML = ""; 
             window.stop(); 
         });
 
         document.addEventListener('click', (e) => {
+            // 🚨 수정됨: [From 닉네임] 답장 버튼 누를 때 UI 박스 띄우기
             if (e.target.classList.contains('reply-btn')) {
                 const targetNick = e.target.getAttribute('data-nick');
-                input.value = `/w "${targetNick}" `;
-                input.focus(); 
+                setWhisperMode(targetNick);
                 return;
             }
 
@@ -343,9 +371,9 @@
             userPopup.style.display = 'none';
         };
 
+        // 🚨 수정됨: 유저 클릭 팝업에서 귓속말 버튼 누를 때 UI 박스 띄우기
         document.getElementById('btn-whisper').onclick = () => { 
-            input.value = `/w "${selectedUser.nick}" `; 
-            input.focus(); 
+            setWhisperMode(selectedUser.nick);
             userPopup.style.display='none'; 
         };
         
@@ -407,7 +435,12 @@
                 const img = document.createElement('img');
                 img.src = `/emoticons/${f}`;
                 img.onclick = () => {
-                    socket.emit('chat message', { type:'image', user:myInfo, content:img.src });
+                    // 🚨 수정됨: 이모티콘 보낼 때 현재 귓속말 모드인지 파악해서 보냄
+                    if (activeWhisperTarget) {
+                        socket.emit('whisper', { targetNick: activeWhisperTarget, user: myInfo, content: img.src });
+                    } else {
+                        socket.emit('chat message', { type:'image', user:myInfo, content:img.src });
+                    }
                     recentEmos = [f, ...recentEmos.filter(e => e !== f)].slice(0, 10);
                     localStorage.setItem('recentEmos', JSON.stringify(recentEmos));
                     drawEmos();
@@ -423,15 +456,20 @@
         document.getElementById('emo-prev').onclick = () => { if(pg>1){ pg--; drawEmos(); } };
         document.getElementById('emo-next').onclick = () => { if(pg < Math.ceil(emos.length/10)){ pg++; drawEmos(); } };
 
+        // 🚨 수정됨: 전송 시 UI 박스를 활용하여 서버로 보냄
         document.getElementById('form').onsubmit = (e) => {
             e.preventDefault();
             const val = input.value.trim();
             if(!val) return;
             
-            if (val.startsWith('/w ')) {
+            // 1. UI 태그 방식 (고정 귓속말)
+            if (activeWhisperTarget) {
+                socket.emit('whisper', { targetNick: activeWhisperTarget, user: myInfo, content: val });
+            } 
+            // 2. 혹시나 유저가 습관적으로 직접 /w 를 쳤을 때를 대비한 수동 모드 호환
+            else if (val.startsWith('/w ')) {
                 let targetNick = "";
                 let content = "";
-                
                 if (val.startsWith('/w "')) {
                     const endQuoteIdx = val.indexOf('"', 4);
                     if (endQuoteIdx !== -1) {
@@ -447,10 +485,14 @@
                 if (targetNick && content) {
                     socket.emit('whisper', { targetNick: targetNick, user: myInfo, content: content });
                 }
-            } else {
+            } 
+            // 3. 일반 채팅
+            else {
                 socket.emit('chat message', { type: 'text', user: myInfo, content: val });
             }
+            
             input.value = '';
+            // 🚨 주의: activeWhisperTarget을 여기서 null로 바꾸지 않으므로, 엔터를 쳐도 귓속말이 계속 고정 유지됩니다!
             emoPicker.style.display = 'none';
         };
 

@@ -165,7 +165,7 @@
             if (window.joinTimer) clearTimeout(window.joinTimer);
             window.joinTimer = setTimeout(() => {
                 socket.emit('join', myInfo);
-            }, 700);
+            }, 300);
         });
         
         socket.on('disconnect', () => {
@@ -610,6 +610,7 @@
     </script>
 </body>
 </html>
+
 
 
 

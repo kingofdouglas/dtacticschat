@@ -61,19 +61,9 @@
         /* 툴팁 */
         #time-tooltip { position: absolute; background: rgba(0, 0, 0, 0.85); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; z-index: 9999; display: none; white-space: nowrap; }
             
-        #btn-go-admin {
-            background: none; border: none; font-size: 20px; cursor: pointer; padding: 0 5px; 
-            display: none; vertical-align: middle; transition: transform 0.2s; outline: none; 
-        }
-
-        #btn-user-setup {
-            background: none; border: none; font-size: 18px; cursor: pointer; padding: 0 5px; outline: none;
-            transition: transform 0.2s; vertical-align: middle;
-        }
-
-        #btn-user-setup:hover, #btn-go-admin:hover {
-            transform: rotate(45deg); opacity: 0.8;
-        }
+        #btn-go-admin { background: none; border: none; font-size: 20px; cursor: pointer; padding: 0 5px; display: none; vertical-align: middle; transition: transform 0.2s; outline: none; }
+        #btn-user-setup { background: none; border: none; font-size: 18px; cursor: pointer; padding: 0 5px; outline: none; transition: transform 0.2s; vertical-align: middle; }
+        #btn-user-setup:hover, #btn-go-admin:hover { transform: rotate(45deg); opacity: 0.8; }
         
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #4a4a4a; }
@@ -109,15 +99,14 @@
                 </div>
             </div>
 
-            <div id="user-settings-modal" style="display: none; position: absolute; background: rgba(35,35,35,0.98); border: 1px solid #444; padding: 15px; border-radius: 8px; z-index: 102; box-shadow: 2px 2px 10px rgba(0,0,0,0.5); width: 150px; color: #ddd;">
-                <div style="font-weight: bold; font-size: 13px; color: #5dade2; margin-bottom: 12px; border-bottom: 1px solid #444; padding-bottom: 5px;">내 설정 (DB 연동)</div>
-                <label style="display: flex; align-items: center; margin-bottom: 10px; font-size: 12px; cursor: pointer;">
-                    <input type="checkbox" id="set-notify" checked style="margin-right: 8px;"> 호출 알림
+            <div id="user-settings-modal" style="display: none; position: absolute; background: rgba(35,35,35,0.98); border: 1px solid #444; padding: 8px 10px; border-radius: 8px; z-index: 102; box-shadow: 2px 2px 10px rgba(0,0,0,0.5); width: 100px; color: #ddd;">
+                <div style="font-weight: bold; font-size: 11px; color: #5dade2; margin-bottom: 6px; border-bottom: 1px solid #444; padding-bottom: 4px;">내 설정</div>
+                <label style="display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; cursor: pointer;">
+                    <input type="checkbox" id="set-notify" checked style="margin-right: 6px;"> 호출 알림
                 </label>
-                <label style="display: flex; align-items: center; margin-bottom: 15px; font-size: 12px; cursor: pointer;">
-                    <input type="checkbox" id="set-whisper" checked style="margin-right: 8px;"> 귓속말
+                <label style="display: flex; align-items: center; margin-bottom: 2px; font-size: 11px; cursor: pointer;">
+                    <input type="checkbox" id="set-whisper" checked style="margin-right: 6px;"> 귓속말
                 </label>
-                <button id="close-settings-btn" style="width: 100%; background: #4a90e2; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 12px;">닫기</button>
             </div>
 
             <form id="form" onsubmit="return false;">
@@ -246,32 +235,28 @@
 
         // 🛠️ 내 설정 관련 로직
         let mySettings = { notify: true, whisper: true };
-        
+        const userSettingsModal = document.getElementById('user-settings-modal');
+        const btnUserSetup = document.getElementById('btn-user-setup');
+
         socket.on('load settings', (settings) => {
             mySettings = settings;
             document.getElementById('set-notify').checked = mySettings.notify;
             document.getElementById('set-whisper').checked = mySettings.whisper;
         });
 
-        const userSettingsModal = document.getElementById('user-settings-modal');
-        const btnUserSetup = document.getElementById('btn-user-setup');
+        // 모달창 위치를 톱니바퀴 바로 위에 동적으로 띄움
         btnUserSetup.onclick = () => {
             if (userSettingsModal.style.display === 'none' || userSettingsModal.style.display === '') {
                 userSettingsModal.style.display = 'block';
-                
-                // 버튼의 현재 위치(좌표)를 가져옵니다.
                 const rect = btnUserSetup.getBoundingClientRect();
-                
-                // 모달창을 버튼의 "바로 위", 그리고 "살짝 왼쪽"으로 정렬합니다.
-                // 팝업의 높이(약 120px)와 버튼 높이를 고려해서 계산
-                userSettingsModal.style.left = (rect.left - 100) + 'px'; 
-                userSettingsModal.style.top = (rect.top - 125) + 'px';
+                userSettingsModal.style.left = (rect.left - 85) + 'px'; 
+                userSettingsModal.style.top = (rect.top - 70) + 'px';
             } else {
                 userSettingsModal.style.display = 'none';
             }
         };
-        document.getElementById('close-settings-btn').onclick = () => userSettingsModal.style.display = 'none';
 
+        // 체크박스 누르면 즉시 DB 저장
         document.getElementById('set-notify').onchange = (e) => {
             mySettings.notify = e.target.checked;
             socket.emit('update settings', mySettings);
@@ -302,7 +287,9 @@
             window.stop(); 
         });
 
+        // 🚨 닫기 버튼 삭제 및 외부 클릭 시 닫히도록 완벽 구현
         document.addEventListener('click', (e) => {
+            // 유저 팝업 처리
             if (e.target.classList.contains('clickable-nick')) {
                 const nick = e.target.getAttribute('data-nick');
                 const id = e.target.getAttribute('data-id');
@@ -337,7 +324,16 @@
             } else if (!userPopup.contains(e.target)) {
                 userPopup.style.display = 'none';
             }
+            
+            // 이모티콘 팝업 닫기
             if (!emoPicker.contains(e.target) && e.target.id !== 'emo-toggle-btn') emoPicker.style.display = 'none';
+            
+            // 🔥 개인 설정 모달 닫기 (모달 밖 클릭 시)
+            if (userSettingsModal.style.display === 'block' && 
+                !userSettingsModal.contains(e.target) && 
+                e.target !== btnUserSetup) {
+                userSettingsModal.style.display = 'none';
+            }
         });
 
         document.getElementById('btn-get-ip').onclick = () => {
@@ -345,7 +341,12 @@
             userPopup.style.display = 'none';
         };
 
-        document.getElementById('btn-whisper').onclick = () => { input.value = `/w ${selectedUser.nick} `; input.focus(); userPopup.style.display='none'; };
+        // 🚨 띄어쓰기 닉네임을 위한 따옴표 파싱 적용
+        document.getElementById('btn-whisper').onclick = () => { 
+            input.value = `/w "${selectedUser.nick}" `; // 따옴표 추가
+            input.focus(); 
+            userPopup.style.display='none'; 
+        };
         
         document.getElementById('btn-call').onclick = () => {
             const now = Date.now();
@@ -421,13 +422,33 @@
         document.getElementById('emo-prev').onclick = () => { if(pg>1){ pg--; drawEmos(); } };
         document.getElementById('emo-next').onclick = () => { if(pg < Math.ceil(emos.length/10)){ pg++; drawEmos(); } };
 
+        // 🚨 띄어쓰기 닉네임 파싱 로직 적용
         document.getElementById('form').onsubmit = (e) => {
             e.preventDefault();
             const val = input.value.trim();
             if(!val) return;
+            
             if (val.startsWith('/w ')) {
-                const p = val.split(' ');
-                if (p.length > 2) socket.emit('whisper', { targetNick: p[1], user: myInfo, content: p.slice(2).join(' ') });
+                let targetNick = "";
+                let content = "";
+                
+                // 따옴표로 묶인 경우 (팝업에서 버튼 눌렀을 때 대응)
+                if (val.startsWith('/w "')) {
+                    const endQuoteIdx = val.indexOf('"', 4);
+                    if (endQuoteIdx !== -1) {
+                        targetNick = val.substring(4, endQuoteIdx);
+                        content = val.substring(endQuoteIdx + 1).trim();
+                    }
+                } else {
+                    // 수동으로 그냥 쳤을 때 (기존 방식)
+                    const p = val.split(' ');
+                    targetNick = p[1];
+                    content = p.slice(2).join(' ');
+                }
+
+                if (targetNick && content) {
+                    socket.emit('whisper', { targetNick: targetNick, user: myInfo, content: content });
+                }
             } else {
                 socket.emit('chat message', { type: 'text', user: myInfo, content: val });
             }
@@ -499,4 +520,3 @@
     </script>
 </body>
 </html>
-

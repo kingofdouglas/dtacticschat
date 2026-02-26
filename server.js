@@ -39,7 +39,12 @@ const Chat = mongoose.model('Chat', new mongoose.Schema({
     content: String,
     timestamp: { type: Date, default: Date.now, expires: 2592000 }
 }));
-
+// 개인설정 저장
+const UserSetting = mongoose.model('UserSetting', new mongoose.Schema({
+    id: String,
+    notify: { type: Boolean, default: true },
+    whisper: { type: Boolean, default: true }
+}));
 const quitUsers = new Map();
 
 const connectedUsers = {};
@@ -196,39 +201,54 @@ io.on('connection', async (socket) => {
     } catch (err) { console.error("Ban check error:", err); }
     
     // B. 유저 입장 (수정본)
-    socket.on('join', (userData) => {
-        // 1. 중복 닉네임 처리 로직 추가
+  socket.on('join', async (userData) => { // 🚨 async 꼭 추가!
         let finalNick = userData.nick;
         const currentUsers = Object.values(connectedUsers);
         
-        // 동일 ID 혹은 동일 IP를 사용하는 유저 수 계산
         const duplicates = currentUsers.filter(u => 
             u.id === userData.id || u.ip === clientIp
         ).length;
     
-        if (duplicates > 0) {
-            finalNick = `${userData.nick} (${duplicates})`;
-        }
-    
-        // 최종 유저 정보 저장 (ip 포함)
+        if (duplicates > 0) finalNick = `${userData.nick} (${duplicates})`;
         const finalUserData = { ...userData, nick: finalNick, ip: clientIp };
         
+        // --- [추가됨] DB에서 유저 설정 불러오기 ---
+        try {
+            let settings = await UserSetting.findOne({ id: userData.id });
+            if (!settings) {
+                // 저장된 설정이 없으면 기본값(모두 켜짐)으로 DB에 새로 생성
+                settings = await UserSetting.create({ id: userData.id, notify: true, whisper: true });
+            }
+            finalUserData.settings = { notify: settings.notify, whisper: settings.whisper };
+            socket.emit('load settings', finalUserData.settings); // 내 화면 체크박스용으로 전송
+        } catch(e) {
+            console.error("설정 로드 에러:", e);
+            finalUserData.settings = { notify: true, whisper: true };
+        }
+        // -------------------------------------
+
         socket.user = finalUserData;
         connectedUsers[socket.id] = finalUserData;
         
-        if (ADMIN_IDS.includes(userData.id)) {
-            socket.emit('admin auth', true);
-        }
+        if (ADMIN_IDS.includes(userData.id)) socket.emit('admin auth', true);
     
         Chat.find().sort({ timestamp: -1 }).limit(50).then(history => {
-        if (history.length > 0) {
-            // 최신 글이 밑으로 가야 하므로 배열을 뒤집어서(reverse) 클라이언트에 전달
-            socket.emit('chat history', history.reverse()); 
-        }
+            if (history.length > 0) socket.emit('chat history', history.reverse()); 
         }).catch(err => console.error("채팅 로딩 에러:", err));
         
         io.emit('user list', getUserListWithAdminStatus());
-        });
+    });
+
+    // --- [추가됨] 클라이언트가 설정을 바꿨을 때 DB 갱신 ---
+    socket.on('update settings', async (settings) => {
+        if (!socket.user) return;
+        socket.user.settings = settings; // 서버 메모리 갱신
+        if(connectedUsers[socket.id]) connectedUsers[socket.id].settings = settings;
+        
+        try { // DB 갱신
+            await UserSetting.updateOne({ id: socket.user.id }, { $set: settings }, { upsert: true });
+        } catch(e) { console.error("설정 저장 에러:", e); }
+    });
 
            // C. 일반 채팅 (빠른 속도 + DB 백그라운드 저장)
         socket.on('chat message', async (data) => {
@@ -277,22 +297,39 @@ io.on('connection', async (socket) => {
         socket.emit('system message', `[알림] ${target.nick}님에 대한 신고가 접수되었습니다.`);
     });
 
-    // E. 귓속말
+// E. 귓속말 (완벽 픽스)
     socket.on('whisper', (data) => {
         let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
+        
         if (targetSocketId) {
+            const targetUser = connectedUsers[targetSocketId];
+            
+            // 🚨 귓속말 거부 상태 체크 (보낸 사람에게 거부당했다고 알림)
+            if (targetUser.settings && targetUser.settings.whisper === false) {
+                // 발신자(socket)에게만 시스템 메시지 전송
+                return socket.emit('system message', `[안내] ${data.targetNick}님은 귓속말을 거부하고 있습니다.`);
+            }
+
             const whisperData = { ...data, timestamp: Date.now() };
-            io.to(targetSocketId).emit('whisper', whisperData);
-            socket.emit('whisper', whisperData); 
+            io.to(targetSocketId).emit('whisper', whisperData); // 대상에게 보냄
+            socket.emit('whisper', whisperData); // 나 자신에게도 표시
         } else {
             socket.emit('system message', '현재 접속해 있지 않은 유저입니다.');
         }
     });
 
-    // F. 호출
+    // F. 호출 (완벽 픽스)
     socket.on('call user', (data) => {
         let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
+        
         if (targetSocketId) {
+            const targetUser = connectedUsers[targetSocketId];
+            
+            // 🚨 알림(호출) 거부 상태 체크 (보낸 사람에게 알림)
+            if (targetUser.settings && targetUser.settings.notify === false) {
+                return socket.emit('system message', `[안내] ${data.targetNick}님은 알람(호출)을 거부하고 있습니다.`);
+            }
+
             io.to(targetSocketId).emit('call alert', { sender: data.sender });
             socket.emit('system message', `[안내] ${data.targetNick}님을 호출했습니다.`);
         } else {

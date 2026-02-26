@@ -77,7 +77,11 @@
                 <div class="stat-value" id="stat-bans">0</div>
             </div>
         </div>
-
+        <h2>📢 공지사항 설정</h2>
+        <div style="background: #333; padding: 15px; margin-bottom: 20px; border-radius: 8px; color: white;">
+        <input type="text" id="notice-input" placeholder="공지사항 입력 (비워두고 저장하면 꺼짐)" style="width: 300px; padding: 5px;">
+        <button onclick="updateNotice()" style="padding: 5px 10px; cursor: pointer;">공지 변경</button>
+        </div>
         <h2>🚫 IP 차단 (Manual Ban)</h2>
         <div class="ban-form">
             <input type="text" id="manualIp" placeholder="차단할 IP 주소">
@@ -372,6 +376,21 @@ async function unmute(userId) {
         const res = await fetch(`/api/admin/mute/${userId}?pw=${pw}`, { method: 'DELETE' });
         if(res.ok) { alert("뮤트가 해제되었습니다."); loadData(); }
     }
+}
+
+        const adminPw = new URLSearchParams(window.location.search).get('pw');
+        fetch(`/api/admin/notice?pw=${adminPw}`)
+            .then(res => res.json())
+            .then(data => { document.getElementById('notice-input').value = data.notice || ''; });
+
+        // 변경 버튼 누르면 서버로 전송
+        function updateNotice() {
+            const val = document.getElementById('notice-input').value;
+            fetch(`/api/admin/notice?pw=${adminPw}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notice: val })
+            }).then(() => alert('공지가 성공적으로 변경되었습니다!'));
 }
 </script>
 </body>

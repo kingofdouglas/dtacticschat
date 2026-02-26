@@ -31,7 +31,7 @@ const Ban = mongoose.model('Ban', new mongoose.Schema({
     reason: String, date: { type: Date, default: Date.now }
 }));
 
-// DB 스키마 채팅내역 (오프라인 귓말 지원 추가)
+// DB 스키마 채팅내역
 const Chat = mongoose.model('Chat', new mongoose.Schema({
     type: String, 
     user: Object, 
@@ -52,21 +52,19 @@ const quitUsers = new Map();
 const connectedUsers = {};
 let mutedUsers = {}; 
 
-// 유틸리티 함수
 const getUserListWithAdminStatus = () => {
     return Object.values(connectedUsers).map(u => ({
         ...u, isAdmin: ADMIN_IDS.includes(u.id)
     }));
 };
 
-// 보안 미들웨어 (관리자 API용)
 const adminAuth = (req, res, next) => {
     const clientPw = req.query.pw || req.body.pw;
     if (clientPw === ADMIN_PW) next();
     else res.status(403).json({ error: "접근 권한이 없습니다." });
 };
 
-// --- HTTP 경로 (Route) 및 관리자 API ---
+// --- HTTP Route ---
 app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
 
 app.get('/admin', (req, res) => {
@@ -87,9 +85,7 @@ app.get('/api/admin/chats', adminAuth, async (req, res) => {
     try {
         const allChats = await Chat.find().sort({ timestamp: -1 }).limit(1000); 
         res.json(allChats);
-    } catch (err) {
-        res.status(500).json({ error: "채팅 기록을 불러오는 데 실패했습니다." });
-    }
+    } catch (err) { res.status(500).json({ error: "채팅 기록 에러" }); }
 });
 
 app.get('/api/admin/reports', adminAuth, async (req, res) => {
@@ -160,10 +156,18 @@ app.get('/api/emoticons', (req, res) => {
     });
 });
 
-// --- 실시간 소켓 로직 (Socket.io) ---
+// --- Socket.io ---
 io.on('connection', async (socket) => {
-    let clientIp = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
-    if (clientIp.includes(',')) clientIp = clientIp.split(',')[0].trim();
+    
+    // 🚨 [수정됨] Render 서버 내부 IP(Proxy) 대응을 위해 IP를 더 정확히 가져옵니다.
+    let clientIp = socket.handshake.headers['x-forwarded-for'] || 
+                   socket.handshake.headers['x-real-ip'] || 
+                   socket.handshake.address || 
+                   "unknown";
+                   
+    if (typeof clientIp === 'string' && clientIp.includes(',')) {
+        clientIp = clientIp.split(',')[0].trim();
+    }
 
     try {
         const isBanned = await Ban.findOne({ ip: clientIp });
@@ -179,17 +183,19 @@ io.on('connection', async (socket) => {
         let finalNick = userData.nick;
         const currentUsers = Object.values(connectedUsers);
         
-        const duplicates = currentUsers.filter(u => u.id === userData.id || u.ip === clientIp).length;
+        // 🚨 [수정됨] 회원님 말씀대로 IP 중복 검사 복구! 
+        // 단, Render 서버 자체 내부 IP(10.x.x.x)나 오류(unknown)일 때는 제외하여 무고한 유저가 묶이는 걸 방지합니다.
+        const duplicates = currentUsers.filter(u => 
+            u.id === userData.id || 
+            (u.ip === clientIp && clientIp !== "unknown" && !clientIp.startsWith("10.") && !clientIp.startsWith("127."))
+        ).length;
     
-        // 중복 접속 닉네임 언더바(_) 처리
         if (duplicates > 0) finalNick = `${userData.nick}_(${duplicates})`;
         const finalUserData = { ...userData, nick: finalNick, ip: clientIp };
         
         try {
             let settings = await UserSetting.findOne({ id: userData.id });
-            if (!settings) {
-                settings = await UserSetting.create({ id: userData.id, notify: true, whisper: true });
-            }
+            if (!settings) settings = await UserSetting.create({ id: userData.id, notify: true, whisper: true });
             finalUserData.settings = { notify: settings.notify, whisper: settings.whisper };
             socket.emit('load settings', finalUserData.settings); 
         } catch(e) {
@@ -201,7 +207,6 @@ io.on('connection', async (socket) => {
         
         if (ADMIN_IDS.includes(userData.id)) socket.emit('admin auth', true);
     
-        // 오프라인 귓속말 & 내 채팅 가져오기
         Chat.find({
             $or: [
                 { type: { $ne: 'whisper' } },
@@ -365,7 +370,7 @@ io.on('connection', async (socket) => {
         }
     });
     
-}); // <--- 🚨 이 괄호가 지워졌기 때문에 서버가 실행되지 않았습니다. 복구 완료!
+}); 
 
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => { console.log(`🚀 서버 실행 중: ${PORT}`); });

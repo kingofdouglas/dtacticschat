@@ -148,6 +148,14 @@ app.get('/api/admin/mutes', adminAuth, (req, res) => {
     res.json(muteList);
 });
 
+// [API] 뮤트 실행 (어드민 페이지용)
+app.post('/api/admin/mute', adminAuth, (req, res) => {
+    const { id, nick } = req.body;
+    mutedUsers[id] = { nick: nick || 'Unknown', date: new Date() };
+    io.emit('system message', `[관리] ${nick}님을 뮤트했습니다.`);
+    res.json({ success: true });
+});
+
 // [API] 뮤트 해제
 app.delete('/api/admin/mute/:id', adminAuth, (req, res) => {
     const targetId = req.params.id;

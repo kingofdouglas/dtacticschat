@@ -204,30 +204,40 @@ io.on('connection', async (socket) => {
         let finalNick = userData.nick;
         const currentUsers = Object.values(connectedUsers);
 
-        // 1. aid가 전달되었는지 확인
+        // 1. aid 추출 및 보안 검증
         const providedAid = userData.aid ? userData.aid.trim() : "";
-
-        // 🚨 [보안 강화] aid가 있는데 ADMIN_IDS에 없는 경우 (부정 접속 시도)
         if (providedAid !== "" && !ADMIN_IDS.includes(providedAid)) {
-            socket.emit('system message', '⚠️ 잘못된 관리자 인증 정보입니다. 정상적인 경로로 접속해 주세요.');
-            socket.disconnect(); // 강제 접속 종료
+            socket.emit('system message', '⚠️ 잘못된 관리자 인증 정보입니다.');
+            socket.disconnect();
             return; 
         }
 
-        // 2. 어드민 판정 (이제 위에서 검증했으므로 안전함)
+        // 2. 어드민 판정
         const isAdminUser = providedAid !== "" && ADMIN_IDS.includes(providedAid);
         
-        // 1. 중복 닉네임 처리 로직 (기존 유지)
+        // 3. 중복 닉네임 처리
         const duplicates = currentUsers.filter(u => 
             u.id === userData.id || 
             (u.ip === clientIp && clientIp !== "unknown" && !clientIp.startsWith("10.") && !clientIp.startsWith("127."))
         ).length;
-    
         if (duplicates > 0) finalNick = `${userData.nick}_(${duplicates})`;
 
+        // 4. 최종 유저 데이터 생성 (isAdmin을 확실히 포함)
+        const finalUserData = { 
+            ...userData, 
+            nick: finalNick, 
+            ip: clientIp, 
+            isAdmin: isAdminUser // 👈 이 값이 매우 중요함
+        };
         
-        const finalUserData = { ...userData, nick: finalNick, ip: clientIp, isAdmin: isAdminUser };
+        // 5. 소켓 및 접속자 목록에 저장
+        socket.user = finalUserData;
+        connectedUsers[socket.id] = finalUserData;
         
+        // 6. 권한 부여 (클라이언트에 알림)
+        if (isAdminUser) socket.emit('admin auth', true);
+
+        // 7. 개인 설정 로드 (기존 코드 유지)
         try {
             let settings = await UserSetting.findOne({ id: userData.id });
             if (!settings) settings = await UserSetting.create({ id: userData.id, notify: true, whisper: true });
@@ -237,28 +247,23 @@ io.on('connection', async (socket) => {
             finalUserData.settings = { notify: true, whisper: true };
         }
 
-        socket.user = finalUserData;
-        connectedUsers[socket.id] = finalUserData;
-        
-        // 어드민 권한 부여
-        if (isAdminUser) socket.emit('admin auth', true);
-    
-        // 🚨 [복구 로직] 이제 고유 ID를 기반으로 귓속말 히스토리를 정확히 찾아옵니다.
+        // 8. 히스토리 불러오기 (기존 코드 유지)
         Chat.find({
             $or: [
-                { type: { $ne: 'whisper' } }, // 일반 채팅
-                { type: 'whisper', 'user.id': userData.id }, // 내가 보낸 귓말 (고유 ID 기준)
-                { type: 'whisper', targetId: userData.id },  // 나에게 온 귓말 (고유 ID 기준 - 아래 whisper 수정 참고)
-                { type: 'whisper', targetNick: userData.nick } // 혹시 모를 닉네임 기반 매칭
+                { type: { $ne: 'whisper' } },
+                { type: 'whisper', 'user.id': userData.id },
+                { type: 'whisper', targetId: userData.id },
+                { type: 'whisper', targetNick: userData.nick }
             ]
         }).sort({ timestamp: -1 }).limit(50).then(history => {
             if (history.length > 0) socket.emit('chat history', history.reverse()); 
             if (currentNotice.trim() !== "") { socket.emit('notice message', currentNotice); }
         }).catch(err => {});
         
+        // 9. 전체 유저 목록 갱신 (이때 isAdmin 상태가 전달됨)
         io.emit('user list', getUserListWithAdminStatus());
     });
-
+    
     socket.on('update settings', async (settings) => {
         if (!socket.user) return;
         socket.user.settings = settings; 

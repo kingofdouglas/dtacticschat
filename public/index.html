@@ -160,13 +160,19 @@
         };
         */
         let isBannedState = false;
-        socket.emit('join', myInfo);
+        
+        socket.on('connect', () => {
+            if (window.joinTimer) clearTimeout(window.joinTimer);
+            window.joinTimer = setTimeout(() => {
+                socket.emit('join', myInfo);
+            }, 700);
+        });
+        
         socket.on('disconnect', () => {
             if (!isBannedState) {
                 setTimeout(() => location.reload(), 1500); 
             }
         });
-        
         socket.on('admin auth', () => { isAdmin = true; });
 
         const messages = document.getElementById('messages');
@@ -604,6 +610,7 @@
     </script>
 </body>
 </html>
+
 
 
 

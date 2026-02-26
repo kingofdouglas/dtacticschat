@@ -156,14 +156,14 @@
             document.getElementById('input').focus();
         };
 
-        socket.on('connect', () => {
-            socket.emit('join', myInfo);
-        });
-        document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === 'visible') {
-                if (!socket.connected) socket.connect();
+        let isBannedState = false;
+        socket.emit('join', myInfo);
+        socket.on('disconnect', () => {
+            if (!isBannedState) {
+                setTimeout(() => location.reload(), 1500); 
             }
         });
+        
         socket.on('admin auth', () => { isAdmin = true; });
 
         const messages = document.getElementById('messages');
@@ -583,6 +583,7 @@
     </script>
 </body>
 </html>
+
 
 
 

@@ -204,13 +204,18 @@ io.on('connection', async (socket) => {
         let finalNick = userData.nick;
         const currentUsers = Object.values(connectedUsers);
         
+        // 1. 중복 닉네임 처리 로직 (기존 유지)
         const duplicates = currentUsers.filter(u => 
             u.id === userData.id || 
             (u.ip === clientIp && clientIp !== "unknown" && !clientIp.startsWith("10.") && !clientIp.startsWith("127."))
         ).length;
     
         if (duplicates > 0) finalNick = `${userData.nick}_(${duplicates})`;
-        const finalUserData = { ...userData, nick: finalNick, ip: clientIp };
+
+        // 🚨 [핵심 변경] userData.aid 가 있다면 어드민 체크용으로 사용
+        const isAdminUser = ADMIN_IDS.includes(userData.aid || userData.id);
+        
+        const finalUserData = { ...userData, nick: finalNick, ip: clientIp, isAdmin: isAdminUser };
         
         try {
             let settings = await UserSetting.findOne({ id: userData.id });
@@ -224,18 +229,20 @@ io.on('connection', async (socket) => {
         socket.user = finalUserData;
         connectedUsers[socket.id] = finalUserData;
         
-        if (ADMIN_IDS.includes(userData.id)) socket.emit('admin auth', true);
+        // 어드민 권한 부여
+        if (isAdminUser) socket.emit('admin auth', true);
     
+        // 🚨 [복구 로직] 이제 고유 ID를 기반으로 귓속말 히스토리를 정확히 찾아옵니다.
         Chat.find({
             $or: [
-                { type: { $ne: 'whisper' } },
-                { type: 'whisper', targetNick: finalNick },
-                { type: 'whisper', 'user.nick': finalNick }
+                { type: { $ne: 'whisper' } }, // 일반 채팅
+                { type: 'whisper', 'user.id': userData.id }, // 내가 보낸 귓말 (고유 ID 기준)
+                { type: 'whisper', targetId: userData.id },  // 나에게 온 귓말 (고유 ID 기준 - 아래 whisper 수정 참고)
+                { type: 'whisper', targetNick: userData.nick } // 혹시 모를 닉네임 기반 매칭
             ]
-        }).sort({ timestamp: -1 }).limit(30).then(history => {
+        }).sort({ timestamp: -1 }).limit(50).then(history => {
             if (history.length > 0) socket.emit('chat history', history.reverse()); 
-            if (currentNotice.trim() !== "") {socket.emit('notice message', currentNotice);}
-            
+            if (currentNotice.trim() !== "") { socket.emit('notice message', currentNotice); }
         }).catch(err => {});
         
         io.emit('user list', getUserListWithAdminStatus());
@@ -267,30 +274,31 @@ io.on('connection', async (socket) => {
     });
 
     socket.on('whisper', (data) => { 
-        let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
-        
-        const whisperData = { 
-            type: 'whisper', 
-            user: data.user, 
-            targetNick: data.targetNick, 
-            content: data.content, 
-            timestamp: Date.now() 
-        };
-
-        if (targetSocketId) {
-            const targetUser = connectedUsers[targetSocketId];
-            if (targetUser.settings && targetUser.settings.whisper === false) {
-                return socket.emit('system message', `[안내] ${data.targetNick}님은 귓속말을 거부하고 있습니다.`);
+            // 닉네임으로 상대방 소켓 찾기
+            let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
+            let targetUser = targetSocketId ? connectedUsers[targetSocketId] : null;
+            
+            const whisperData = { 
+                type: 'whisper', 
+                user: socket.user, // 보낸 사람 정보 (ID 포함되어 있음)
+                targetNick: data.targetNick, 
+                targetId: targetUser ? targetUser.id : null, // 🚨 상대방의 고유 ID도 함께 저장!
+                content: data.content, 
+                timestamp: Date.now() 
+            };
+    
+            if (targetSocketId) {
+                if (targetUser.settings && targetUser.settings.whisper === false) {
+                    return socket.emit('system message', `[안내] ${data.targetNick}님은 귓속말을 거부하고 있습니다.`);
+                }
+                io.to(targetSocketId).emit('whisper', whisperData); 
+            } else {
+                socket.emit('system message', `[안내] ${data.targetNick}님은 현재 오프라인입니다. (메시지는 남겨집니다)`);
             }
-            io.to(targetSocketId).emit('whisper', whisperData); 
-        } else {
-            socket.emit('system message', `[안내] ${data.targetNick}님은 현재 오프라인입니다. (메시지는 남겨집니다)`);
-        }
-        
-        socket.emit('whisper', whisperData); // 나 자신에게도 즉시 표시
-
-        Chat.create(whisperData).catch(e => { console.error("귓말 저장 에러:", e); });
-    });
+            
+            socket.emit('whisper', whisperData); 
+            Chat.create(whisperData).catch(e => { console.error("귓말 저장 에러:", e); });
+        });
 
     socket.on('call user', (data) => {
         let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);

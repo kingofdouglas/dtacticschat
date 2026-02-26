@@ -457,7 +457,7 @@ socket.on('open ban page', (data) => {
                 // 닫기
                 lastUserListWidth = container.style.width || '160px';
                 container.style.width = '35px'; // 아이콘이 잘 안보일 수 있어 35px 권장
-                usersUl.innerHTML = ''; // 수정
+                usersUl.style.display = 'none';
                 resizer.style.visibility = 'hidden'; // display:none 대신 visibility 사용 시 레이아웃 흔들림 적음
                 isUserListOpen = false;
             } else {
@@ -465,12 +465,13 @@ socket.on('open ban page', (data) => {
                 container.style.width = lastUserListWidth;
                 resizer.style.visibility = 'visible';
                 isUserListOpen = true;
-                socket.emit('join', myInfo);
+                usersUl.style.display = 'block';
             }
         };
     </script>
 </body>
 </html>
+
 
 
 

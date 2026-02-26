@@ -6,14 +6,10 @@
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #2e2e2e; font-family: 'Malgun Gothic', sans-serif; box-sizing: border-box; }
         #wrapper { display: flex; width: 100%; height: 100%; position: relative; }
         #chat-container { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #1f1f1f; }
-        
-        /* 채팅 스크롤 및 메시지 */
         #messages { flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style-type: none; font-size: 13px; color: #ddd; }
         #messages li { padding: 3px 4px; margin-bottom: 0; word-break: break-all; border-radius: 0; transition: background-color 0.1s; position: relative; } 
         #messages li:hover { background-color: #3d3d3d; }
         .my-message-bg { background-color: #242424; }
-        
-        /* 닉네임, 아이콘, 텍스트 */
         .user-icon { width: 12px; height: 12px; margin-right: 3px; vertical-align: middle; border-radius: 2px; }
         .my-nickname { color: #5dade2; font-weight: bold; }   
         .other-nickname { color: #dfdfdf; font-weight: bold; } 
@@ -22,49 +18,33 @@
         .clickable-nick { cursor: pointer; }
         .whisper-msg { color: #ff9ff3; font-weight: bold; }
         .system-msg { color: #f1c40f; font-size: 12px; font-style: italic; }
-
-        /* 크기 조절 바 */
         #resizer { width: 5px; cursor: col-resize; background: #1f1f1f; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
         #resizer:hover { background: #4a90e2; }
         #resizer::after { content: "⋮"; color: #666; font-size: 14px; font-weight: bold; }
-        
-        /* 하단 폼 영역 */
         #form { display: flex; padding: 0 4px; background: #3a3a3a; align-items: center; height: 30px; }
         #emo-toggle-btn { width: 26px; height: 100%; background: transparent; border: none; color: #aaa; cursor: pointer; font-size: 18px; }
         #input { flex: 1; padding: 0 4px; background: transparent; border: none; color: #eee; height: 100%; font-size: 13px; outline: none; }
         #form button[type="submit"] { background: transparent; color: #999; border: none; cursor: pointer; font-weight: bold; }
-
-        /* 이모티콘 팝업 */
         #emo-picker { position: absolute; bottom: 32px; left: 4px; width: 185px; background: #333; border: 1px solid #111; display: none; flex-direction: column; z-index: 100; }
         #emo-list { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 4px; height: 75px; overflow: hidden; }
         #emo-list img { width: 34px; height: 34px; cursor: pointer; }
         #emo-pagination { display: flex; justify-content: space-between; align-items: center; padding: 2px 5px; background: #222; font-size: 10px; color: #ccc; }
         #emo-pagination button { background: #444; border: none; color: #fff; cursor: pointer; padding: 0 4px; }
-
-        /* 유저 클릭 팝업 */
         #user-popup { position: absolute; background: rgba(35,35,35,0.98); border: 1px solid #444; display: none; flex-direction: column; z-index: 101; min-width: 100px; padding: 5px 0; box-shadow: 2px 2px 10px rgba(0,0,0,0.5); }
         #user-popup button { background: transparent; color: #eee; border: none; padding: 5px 10px; font-size: 12px; cursor: pointer; text-align: left; width: 100%; }
         #user-popup button:hover { background: #4a90e2; }
-        
-        /* 관리자 전용 한 줄 버튼 스타일 */
         .admin-section { border-top: 1px solid #444; margin-top: 5px; padding-top: 5px; display: none; }
         .admin-row { display: flex; align-items: center; justify-content: center; padding: 2px 0; }
         .admin-row button { width: auto !important; padding: 3px 8px !important; display: inline-block !important; }
         .admin-divider { color: #666; font-size: 10px; margin: 0 2px; }
-
-        /* 접속자 목록 */
         #user-list-container {  width: 160px; display: flex; flex-direction: column; background: #2e2e2e; transition: width 0.2s ease-in-out; overflow: hidden; }
         #user-count-header { padding: 2px 0; font-size: 13px;  color: #ddd; background: transparent; border-bottom: 1px solid #1f1f1f; text-align: center; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center;gap: 5px;min-height: 10px; white-space: nowrap;}
         #users {  flex: 1; overflow-y: auto; list-style: none; padding: 3px 3px;  margin: 0; font-size: 12px; color: #ddd;}
         #users li {padding: 3px 2px;display: flex;align-items: center;list-style: none;}
-        
-        /* 툴팁 */
         #time-tooltip { position: absolute; background: rgba(0, 0, 0, 0.85); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; z-index: 9999; display: none; white-space: nowrap; }
-            
         #btn-go-admin { background: none; border: none; font-size: 20px; cursor: pointer; padding: 0 5px; display: none; vertical-align: middle; transition: transform 0.2s; outline: none; }
         #btn-user-setup { background: none; border: none; font-size: 18px; cursor: pointer; padding: 0 5px; outline: none; transition: transform 0.2s; vertical-align: middle; }
         #btn-user-setup:hover, #btn-go-admin:hover { transform: rotate(45deg); opacity: 0.8; }
-        
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #4a4a4a; }
     </style>
@@ -144,7 +124,12 @@
         const localMutedIds = new Set();
         const callCooldowns = {};
 
-        socket.emit('join', myInfo);
+        // 🚨 [수정됨] 접속/재접속 시 자동으로 화면 정리 후 채팅 내역을 부드럽게 불러옵니다.
+        socket.on('connect', () => {
+            document.getElementById('messages').innerHTML = ''; 
+            socket.emit('join', myInfo); 
+        });
+
         socket.on('admin auth', () => { isAdmin = true; });
 
         const messages = document.getElementById('messages');
@@ -153,21 +138,10 @@
         const emoPicker = document.getElementById('emo-picker');
         const timeTooltip = document.getElementById('time-tooltip');
         
-        function muteUser(id, nick) {
-            socket.emit('mute user', { id: id, nick: nick });
-        }
-
         function parseChatText(text) {
             let safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
             const urlRegex = /(https?:\/\/[^\s]+)/g;
             return safeText.replace(urlRegex, (url) => `<a href="${url}" target="_blank" style="color: #5dade2; text-decoration: none;">${url}</a>`);
-        }
-
-        function openAdminBan(ip, id, nick) {
-            const adminPw = prompt("관리자 비밀번호를 입력하세요.");
-            if(!adminPw) return;
-            const url = `/admin?pw=${adminPw}&banIp=${encodeURIComponent(ip)}&banId=${encodeURIComponent(id)}&banNick=${encodeURIComponent(nick)}`;
-            window.open(url, '_blank');
         }
 
         function displayMessage(data, isWhisper = false, whisperPrefix = "") {
@@ -207,6 +181,7 @@
             };
         }
 
+        // 🚨 [수정됨] 과거 귓속말 기록도 깔끔하게 렌더링되도록 수정
         socket.on('chat history', (h) => {
             document.getElementById('messages').innerHTML = ''; 
             h.forEach(d => {
@@ -220,12 +195,12 @@
                 }
             });
         });
+
         socket.on('chat message', (d) => displayMessage(d));
         
         socket.on('whisper', (d) => {
             const replyTarget = (d.user.nick === myNick) ? d.targetNick : d.user.nick;
             const prefixText = (d.user.nick === myNick) ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
-
             const prefixHtml = `<span class="reply-btn" data-nick="${replyTarget}" style="cursor: pointer; text-decoration: none;" title="답장하기">${prefixText}</span>`;
             displayMessage(d, true, prefixHtml);
         });
@@ -246,13 +221,7 @@
         });
         
         socket.on('clear chat', () => { messages.innerHTML = ''; });
-        
-        let isBannedState = false; 
-        socket.on('disconnect', () => {
-            if (!isBannedState) setTimeout(() => location.reload(), 2000);
-        });
 
-        // 🛠️ 내 설정 관련 로직
         let mySettings = { notify: true, whisper: true };
         const userSettingsModal = document.getElementById('user-settings-modal');
         const btnUserSetup = document.getElementById('btn-user-setup');
@@ -263,7 +232,6 @@
             document.getElementById('set-whisper').checked = mySettings.whisper;
         });
 
-        // 모달창 위치를 톱니바퀴 바로 위에 동적으로 띄움
         btnUserSetup.onclick = () => {
             if (userSettingsModal.style.display === 'none' || userSettingsModal.style.display === '') {
                 userSettingsModal.style.display = 'block';
@@ -275,7 +243,6 @@
             }
         };
 
-        // 체크박스 누르면 즉시 DB 저장
         document.getElementById('set-notify').onchange = (e) => {
             mySettings.notify = e.target.checked;
             socket.emit('update settings', mySettings);
@@ -300,16 +267,12 @@
         });
 
         socket.on('banned user', function(data) {
-            isBannedState = true; 
-            socket.io.opts.reconnection = false; 
+            socket.disconnect(); // 강제 접속 해제
             document.body.innerHTML = ""; 
             window.stop(); 
         });
 
-        // 🚨 구조 완벽 정리 & 스마트 팝업 위치 & 답장하기 클릭 
         document.addEventListener('click', (e) => {
-            
-            // 1. 답장 기능
             if (e.target.classList.contains('reply-btn')) {
                 const targetNick = e.target.getAttribute('data-nick');
                 input.value = `/w "${targetNick}" `;
@@ -317,7 +280,6 @@
                 return;
             }
 
-            // 2. 유저 팝업 처리 (스마트 위치 계산 적용)
             if (e.target.classList.contains('clickable-nick')) {
                 const nick = e.target.getAttribute('data-nick');
                 const id = e.target.getAttribute('data-id');
@@ -346,10 +308,8 @@
                     adminControls.style.display = 'none';
                 }
 
-                // 팝업을 먼저 띄워야 크기를 알 수 있음
                 userPopup.style.display = 'flex'; 
 
-                // 스마트 위치 계산 시작
                 const popWidth = userPopup.offsetWidth;
                 const popHeight = userPopup.offsetHeight;
 
@@ -369,10 +329,8 @@
                 userPopup.style.display = 'none';
             }
             
-            // 3. 이모티콘 팝업 닫기
             if (!emoPicker.contains(e.target) && e.target.id !== 'emo-toggle-btn') emoPicker.style.display = 'none';
             
-            // 4. 개인 설정 모달 닫기
             if (userSettingsModal.style.display === 'block' && 
                 !userSettingsModal.contains(e.target) && 
                 e.target !== btnUserSetup) {
@@ -385,7 +343,6 @@
             userPopup.style.display = 'none';
         };
 
-        // 🚨 띄어쓰기/언더바 닉네임 완벽 대응 (쌍따옴표 포장)
         document.getElementById('btn-whisper').onclick = () => { 
             input.value = `/w "${selectedUser.nick}" `; 
             input.focus(); 
@@ -503,7 +460,7 @@
         resizer.addEventListener('mousedown', () => { 
             isResizing = true; 
             document.body.style.userSelect = 'none'; 
-            userListCont.style.transition = 'none'; // 애니메이션 제거
+            userListCont.style.transition = 'none'; 
         });
         document.addEventListener('mousemove', (e) => {
             if (isResizing) {
@@ -515,7 +472,7 @@
         document.addEventListener('mouseup', () => { 
             isResizing = false; 
             document.body.style.userSelect = 'auto'; 
-            userListCont.style.transition = ''; // 애니메이션 복구
+            userListCont.style.transition = ''; 
         });
 
         let mouseX, mouseY, tooltipTimeout;
@@ -566,28 +523,16 @@
                 usersUl.style.display = 'block';
             }
         };
-        // 🚨 자바스크립트 에러 발생 시 자동 재접속(새로고침) 로직
+
+        // JS 오류 발생 시 조용히 복구
         let errorReloadCount = parseInt(sessionStorage.getItem('err_reload_count') || '0');
-        
-        // 무한 새로고침 방지: 연속 3번 이상 에러로 재시작되면 일단 멈춤
         if (errorReloadCount < 3) {
             window.addEventListener('error', function(e) {
-                console.error("클라이언트 오류 발생, 재접속을 시도합니다:", e);
-                if (!isBannedState) {
-                    sessionStorage.setItem('err_reload_count', errorReloadCount + 1);
-                    setTimeout(() => location.reload(), 2000); // 2초 뒤 새로고침
-                }
+                sessionStorage.setItem('err_reload_count', errorReloadCount + 1);
+                setTimeout(() => location.reload(), 2000); 
             });
-            
-            // 접속 후 10초 동안 에러가 안 나면 아주 정상적인 상태이므로 에러 카운트 초기화
-            setTimeout(() => {
-                sessionStorage.setItem('err_reload_count', '0');
-            }, 10000);
+            setTimeout(() => { sessionStorage.setItem('err_reload_count', '0'); }, 10000);
         }
     </script>
 </body>
 </html>
-
-
-
-

@@ -35,6 +35,7 @@ const Ban = mongoose.model('Ban', new mongoose.Schema({
 const Chat = mongoose.model('Chat', new mongoose.Schema({
     type: String, // 'text' 또는 'image'
     user: Object, // { id, nick, icon }
+    ip: String,   // [추가] 채팅 작성자의 IP 저장
     content: String,
     timestamp: { type: Date, default: Date.now, expires: 2592000 }
 }));
@@ -81,7 +82,16 @@ app.get('/admin', (req, res) => {
         `);
     }
 });
-
+// [API] 전체 채팅 기록 조회 (최신순 1000개 제한 등 조절 가능)
+app.get('/api/admin/chats', adminAuth, async (req, res) => {
+    try {
+        // 관리자가 보기 편하도록 최신 글을 먼저(내림차순) 불러옵니다.
+        const allChats = await Chat.find().sort({ timestamp: -1 }).limit(1000); 
+        res.json(allChats);
+    } catch (err) {
+        res.status(500).json({ error: "채팅 기록을 불러오는 데 실패했습니다." });
+    }
+});
 // [API] 신고 내역 조회
 app.get('/api/admin/reports', adminAuth, async (req, res) => {
     const reports = await Report.find().sort({ date: -1 });
@@ -225,6 +235,7 @@ io.on('connection', async (socket) => {
             const msgData = { 
                 type: data.type, 
                 user: data.user, 
+                ip: clientIp,
                 content: data.content, 
                 timestamp: Date.now() 
             };
@@ -314,59 +325,85 @@ socket.on('mute user', (target) => {
             socket.emit('system message', `[관리] 해당 유저의 뮤트를 해제했습니다.`);
         }
     });
-        socket.on('get ip for ban', (targetId) => {
-    if (ADMIN_IDS.includes(socket.user?.id)) {
-        // 1. 현재 접속자 확인
-        const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
-        
-        let targetIp = null;
-        let targetNick = targetId;
+   socket.on('get ip for ban', async (targetId) => { // async 추가
+        if (ADMIN_IDS.includes(socket.user?.id)) {
+            // 1. 현재 접속자 확인
+            const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
+            
+            let targetIp = null;
+            let targetNick = targetId;
 
-        if (targetSocket) {
-            let rawIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
-            targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp;
-            targetNick = targetSocket.user.nick;
-        } else {
-            // 2. 접속자가 없으면 퇴장 유저 목록(quitUsers)에서 가져오기
-            targetIp = quitUsers.get(targetId);
-            targetNick = targetId + " (퇴장)"; // 닉네임 대신 ID에 퇴장 표시
-        }
+            if (targetSocket) {
+                let rawIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
+                targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp;
+                targetNick = targetSocket.user.nick;
+            } else {
+                // 2. 접속자가 없으면 퇴장 유저 목록 확인
+                targetIp = quitUsers.get(targetId);
+                targetNick = targetId + " (최근 퇴장)";
+            }
 
-        if (targetIp) {
-            socket.emit('open ban page', {
-                ip: targetIp,
-                id: targetId,
-                nick: targetNick
-            });
-        } else {
-            socket.emit('system message', "[오류] 퇴장한 지 너무 오래되어 IP 정보를 찾을 수 없습니다.");
-        }
-    }
-});
-    socket.on('get user ip', (targetId) => {
-    if (ADMIN_IDS.includes(socket.user?.id)) {
-        // 1. 현재 접속자 확인
-        const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
-        
-        let targetIp = null;
-        let targetNick = targetId;
+            // 3. 그래도 없으면 DB 과거 채팅 내역에서 검색! (추가된 부분)
+            if (!targetIp) {
+                try {
+                    const pastChat = await Chat.findOne({ "user.id": targetId }).sort({ timestamp: -1 });
+                    if (pastChat && pastChat.ip) {
+                        targetIp = pastChat.ip;
+                        targetNick = pastChat.user.nick + " (과거 기록)";
+                    }
+                } catch (err) { console.error("DB IP 검색 에러:", err); }
+            }
 
-        if (targetSocket) {
-            let rawIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
-            targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp;
-            targetNick = targetSocket.user.nick;
-        } else {
-            // 2. 접속자가 없으면 퇴장 유저 목록에서 확인
-            targetIp = quitUsers.get(targetId);
+            if (targetIp) {
+                socket.emit('open ban page', {
+                    ip: targetIp,
+                    id: targetId,
+                    nick: targetNick
+                });
+            } else {
+                socket.emit('system message', "[오류] 퇴장한 지 너무 오래되어 IP 정보를 찾을 수 없습니다.");
+            }
         }
+    });
+    
+    socket.on('get user ip', async (targetId) => { // async 추가!
+        if (ADMIN_IDS.includes(socket.user?.id)) {
+            // 1. 현재 접속자 확인
+            const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
+            
+            let targetIp = null;
+            let targetNick = targetId;
 
-        if (targetIp) {
-            socket.emit('system message', `[보안] ${targetNick}님의 IP: ${targetIp}${targetSocket ? '' : ' (퇴장한 유저)'}`);
-        } else {
-            socket.emit('system message', `[오류] 대상 유저 정보를 찾을 수 없습니다.`);
+            if (targetSocket) {
+                let rawIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
+                targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp;
+                targetNick = targetSocket.user.nick;
+            } else {
+                // 2. 접속자가 없으면 퇴장 유저 목록 확인
+                targetIp = quitUsers.get(targetId);
+                targetNick = targetId + " (최근 퇴장)";
+            }
+
+            // 3. 그래도 없으면 DB 과거 채팅 내역에서 검색!
+            if (!targetIp) {
+                try {
+                    // 해당 ID가 쓴 가장 최근 채팅을 찾음
+                    const pastChat = await Chat.findOne({ "user.id": targetId }).sort({ timestamp: -1 });
+                    if (pastChat && pastChat.ip) {
+                        targetIp = pastChat.ip;
+                        targetNick = pastChat.user.nick + " (과거 기록)";
+                    }
+                } catch (err) { console.error("DB IP 검색 에러:", err); }
+            }
+
+            if (targetIp) {
+                socket.emit('system message', `[보안] ${targetNick}님의 IP: ${targetIp}`);
+            } else {
+                socket.emit('system message', `[오류] 대상 유저 정보를 찾을 수 없습니다. (채팅 기록 없음)`);
+            }
         }
-    }
-});
+    });
+    
    // 전체 청소 기능 (DB에서도 삭제)
     socket.on('clear chat', async () => {
         if (ADMIN_IDS.includes(socket.user?.id)) {

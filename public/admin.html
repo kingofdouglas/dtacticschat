@@ -36,6 +36,7 @@
         .btn-dismiss { background: #555; color: white; margin-left: 5px; }
         .btn-unban { background: #2ecc71; color: white; }
         .btn-refresh { background: #4a90e2; color: white; padding: 10px 20px; }
+        .btn-toggle { background: #9b59b6; color: white; padding: 10px 20px; margin-right: 10px; } /* 화면 전환 버튼 색상 */
         
         .ban-form { 
             background: #252525; padding: 20px; border-radius: 8px; 
@@ -55,93 +56,97 @@
 <div class="container">
     <div class="header-row">
         <h1>⚙️ Dtactics Chat Administration</h1>
-        <button class="btn-refresh" onclick="loadData()">새로고침 🔄</button>
-    </div>
-
-    <div class="admin-stats">
-        <div class="stat-box">
-            <div class="stat-label">상태</div>
-            <div class="stat-value" id="server-status" style="color: #2ecc71;">ONLINE</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">신고 내역</div>
-            <div class="stat-value" id="stat-reports">0</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">차단 수</div>
-            <div class="stat-value" id="stat-bans">0</div>
+        <div>
+            <button class="btn-toggle" id="toggleBtn" onclick="toggleView()">채팅 기록 보기 💬</button>
+            <button class="btn-refresh" onclick="loadData()">새로고침 🔄</button>
         </div>
     </div>
 
-    <h2>🚫 IP 차단 (Manual Ban)</h2>
-    <div class="ban-form">
-        <input type="text" id="manualIp" placeholder="차단할 IP 주소">
-        <input type="text" id="manualNick" placeholder="대상 닉네임(선택)">
-        <input type="text" id="manualReason" placeholder="차단 사유">
-        <button class="btn-ban" style="padding: 10px 20px;" onclick="manualBan()">즉시 차단</button>
-    </div>
+    <div id="main-view">
+        <div class="admin-stats">
+            <div class="stat-box">
+                <div class="stat-label">상태</div>
+                <div class="stat-value" id="server-status" style="color: #2ecc71;">ONLINE</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">신고 내역</div>
+                <div class="stat-value" id="stat-reports">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">차단 수</div>
+                <div class="stat-value" id="stat-bans">0</div>
+            </div>
+        </div>
 
-    <h2>📢 최근 신고 내역 (Reports)</h2>
-    <div class="table-wrapper">
-        <table id="reportTable">
-            <thead>
-                <tr><th>대상 유저</th><th>IP 주소</th><th>신고자</th><th>날짜</th><th>관리</th></tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
+        <h2>🚫 IP 차단 (Manual Ban)</h2>
+        <div class="ban-form">
+            <input type="text" id="manualIp" placeholder="차단할 IP 주소">
+            <input type="text" id="manualNick" placeholder="대상 닉네임(선택)">
+            <input type="text" id="manualReason" placeholder="차단 사유">
+            <button class="btn-ban" style="padding: 10px 20px;" onclick="manualBan()">즉시 차단</button>
+        </div>
 
-    <h2>🔒 IP 차단 목록 (Banned IPs)</h2>
-    <div class="table-wrapper">
-        <table id="banTable">
-            <thead>
-                <tr><th>닉네임</th><th>IP 주소</th><th>사유</th><th>관리</th></tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
+        <h2>📢 최근 신고 내역 (Reports)</h2>
+        <div class="table-wrapper">
+            <table id="reportTable">
+                <thead>
+                    <tr><th>대상 유저</th><th>IP 주소</th><th>신고자</th><th>날짜</th><th>관리</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
 
-    <h2>🔇 실시간 뮤트 목록 (Muted Users)</h2>
-    <div class="table-wrapper">
-        <table id="muteTable">
-            <thead>
-                <tr><th>유저 ID</th><th>상태</th><th>관리</th></tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
-</div>
-<h2>💬 최근 채팅 기록 (Chat History)</h2>
-    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-        <input type="text" id="chatSearch" onkeyup="filterChats()" placeholder="닉네임, 아이디, IP 또는 내용 검색..." style="flex: 1; padding: 10px; background: #1a1a1a; border: 1px solid #444; color: #eee; border-radius: 4px;">
-    </div>
-    
-    <div class="table-wrapper">
-        <table id="chatTable">
-            <thead>
-                <tr>
-                    <th style="width: 15%;">시간</th>
-                    <th style="width: 15%;">닉네임 (ID)</th>
-                    <th style="width: 15%;">IP 주소</th>
-                    <th style="width: 40%;">내용</th>
-                    <th style="width: 15%; text-align: center;">관리 (즉시 처벌)</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
-    
-    <div style="text-align: center; margin-top: 10px; margin-bottom: 30px;">
-        <button onclick="changePage(-1)" style="background: #444; color: white; padding: 6px 15px;">◀ 이전</button>
-        <span id="pageInfo" style="margin: 0 20px; font-weight: bold; color: #5dade2;">1 / 1</span>
-        <button onclick="changePage(1)" style="background: #444; color: white; padding: 6px 15px;">다음 ▶</button>
-    </div>
-</div> 
-<script>
-let allChats = []; // 전체 채팅 데이터를 저장할 공간
-let filteredChats = []; // 검색된 채팅만 모아둘 공간
+        <h2>🔒 IP 차단 목록 (Banned IPs)</h2>
+        <div class="table-wrapper">
+            <table id="banTable">
+                <thead>
+                    <tr><th>닉네임</th><th>IP 주소</th><th>사유</th><th>관리</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <h2>🔇 실시간 뮤트 목록 (Muted Users)</h2>
+        <div class="table-wrapper">
+            <table id="muteTable">
+                <thead>
+                    <tr><th>유저 ID</th><th>상태</th><th>관리</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div> <div id="chat-view" style="display: none;">
+        <h2>💬 최근 채팅 기록 (Chat History)</h2>
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <input type="text" id="chatSearch" onkeyup="filterChats()" placeholder="닉네임, 아이디, IP 또는 내용 검색..." style="flex: 1; padding: 10px; background: #1a1a1a; border: 1px solid #444; color: #eee; border-radius: 4px;">
+        </div>
+        
+        <div class="table-wrapper">
+            <table id="chatTable">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;">시간</th>
+                        <th style="width: 15%;">닉네임 (ID)</th>
+                        <th style="width: 15%;">IP 주소</th>
+                        <th style="width: 40%;">내용</th>
+                        <th style="width: 15%; text-align: center;">관리 (즉시 처벌)</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        
+        <div style="text-align: center; margin-top: 10px; margin-bottom: 10px;">
+            <button onclick="changePage(-1)" style="background: #444; color: white; padding: 6px 15px;">◀ 이전</button>
+            <span id="pageInfo" style="margin: 0 20px; font-weight: bold; color: #5dade2;">1 / 1</span>
+            <button onclick="changePage(1)" style="background: #444; color: white; padding: 6px 15px;">다음 ▶</button>
+        </div>
+    </div> </div> <script>
+let allChats = []; 
+let filteredChats = []; 
 let currentPage = 1;
-const chatsPerPage = 30; // 한 페이지에 보여줄 개수 (원하시면 50으로 수정 가능)
+const chatsPerPage = 30; 
+let currentView = 'main'; // 현재 보고 있는 화면 상태 ('main' 또는 'chat')
 
 window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
@@ -155,6 +160,27 @@ window.addEventListener('DOMContentLoaded', () => {
 
     loadData(); 
 });
+
+// --- 화면 전환 함수 ---
+function toggleView() {
+    const mainView = document.getElementById('main-view');
+    const chatView = document.getElementById('chat-view');
+    const toggleBtn = document.getElementById('toggleBtn');
+
+    if (currentView === 'main') {
+        mainView.style.display = 'none';
+        chatView.style.display = 'block';
+        toggleBtn.innerText = '메인 대시보드 보기 🏠';
+        toggleBtn.style.background = '#e67e22'; // 버튼 색상 변경 (주황)
+        currentView = 'chat';
+    } else {
+        mainView.style.display = 'block';
+        chatView.style.display = 'none';
+        toggleBtn.innerText = '채팅 기록 보기 💬';
+        toggleBtn.style.background = '#9b59b6'; // 버튼 색상 복구 (보라)
+        currentView = 'main';
+    }
+}
 
 async function loadData() {
     const pw = new URLSearchParams(window.location.search).get('pw');
@@ -207,10 +233,10 @@ async function loadData() {
             `).join('');
         }
 
-        // 4. 채팅 목록 (데이터만 가져오고 렌더링은 분리)
+        // 4. 채팅 목록
         const chatRes = await fetch(`/api/admin/chats?pw=${pw}`);
         allChats = await chatRes.json();
-        filterChats(); // 가져온 데이터를 검색 및 페이징하여 화면에 그림
+        filterChats(); 
 
         document.getElementById('server-status').innerText = "ONLINE";
         document.getElementById('server-status').style.color = "#2ecc71";
@@ -220,11 +246,9 @@ async function loadData() {
     }
 }
 
-// --- 새롭게 추가된 검색 & 페이징 로직 ---
 function filterChats() {
     const query = document.getElementById('chatSearch').value.toLowerCase();
     
-    // 검색어가 있으면 닉네임, ID, IP, 내용 중에서 일치하는 것만 필터링
     if (query) {
         filteredChats = allChats.filter(c => 
             (c.user.nick && c.user.nick.toLowerCase().includes(query)) ||
@@ -236,7 +260,7 @@ function filterChats() {
         filteredChats = [...allChats];
     }
     
-    currentPage = 1; // 검색할 땐 무조건 1페이지로
+    currentPage = 1; 
     renderChats();
 }
 
@@ -258,7 +282,6 @@ function renderChats() {
         return;
     }
 
-    // 현재 페이지에 해당하는 데이터만 뚝 잘라냄 (슬라이스)
     const startIndex = (currentPage - 1) * chatsPerPage;
     const pagedData = filteredChats.slice(startIndex, startIndex + chatsPerPage);
 
@@ -271,7 +294,6 @@ function renderChats() {
             ? `<img src="${c.content}" style="max-height: 30px; border-radius: 4px;"> <span style="font-size:11px; color:#888;">(이모티콘)</span>`
             : c.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-        // 즉시 처벌 버튼 (뮤트 & 밴) 추가
         return `
             <tr>
                 <td class="time-text">${timeStr}</td>
@@ -325,7 +347,7 @@ async function manualBan() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ip, id: 'manual', nick: nick || 'Unknown', reason: reason || '관리자 직접 차단' })
     });
-    if(res.ok) { alert("수동 차단 완료"); loadData(); }
+    if(res.ok) { alert("IP 차단 완료"); loadData(); }
 }
 
 async function deleteReport(id) {

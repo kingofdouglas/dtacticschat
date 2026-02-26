@@ -73,7 +73,7 @@
         </div>
     </div>
 
-    <h2>🚫 수동 IP 차단 (Manual Ban)</h2>
+    <h2>🚫 IP 차단 (Manual Ban)</h2>
     <div class="ban-form">
         <input type="text" id="manualIp" placeholder="차단할 IP 주소">
         <input type="text" id="manualNick" placeholder="대상 닉네임(선택)">
@@ -258,7 +258,7 @@ async function manualBan() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ip, id: 'manual', nick: nick || 'Unknown', reason: reason || '관리자 직접 차단' })
     });
-    if(res.ok) { alert("수동 차단 완료"); loadData(); }
+    if(res.ok) { alert("IP 차단 완료"); loadData(); }
 }
 
 async function quickBan(ip, id, nick) {

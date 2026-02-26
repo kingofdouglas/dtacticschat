@@ -77,10 +77,10 @@
                 <div class="stat-value" id="stat-bans">0</div>
             </div>
         </div>
-        <h2>📢 공지사항 설정</h2>
-        <div style="background: #333; padding: 15px; margin-bottom: 20px; border-radius: 8px; color: white;">
-        <input type="text" id="notice-input" placeholder="공지사항 입력 (비워두고 저장하면 꺼짐)" style="width: 300px; padding: 5px;">
-        <button onclick="updateNotice()" style="padding: 5px 10px; cursor: pointer;">공지 변경</button>
+       <h2>📢 공지사항 설정 (Notice)</h2>
+        <div class="ban-form">
+            <input type="text" id="notice-input" placeholder="공지사항 내용 입력 (비워두고 변경 시 공지 삭제)">
+            <button class="btn-refresh" style="padding: 10px 20px;" onclick="updateNotice()">공지 변경</button>
         </div>
         <h2>🚫 IP 차단 (Manual Ban)</h2>
         <div class="ban-form">

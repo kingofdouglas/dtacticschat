@@ -36,7 +36,7 @@ const Chat = mongoose.model('Chat', new mongoose.Schema({
     type: String, // 'text' 또는 'image'
     user: Object, // { id, nick, icon }
     content: String,
-    timestamp: { type: Number, default: Date.now }
+    timestamp: { type: Date, default: Date.now, expires: 2592000 }
 }));
 
 const quitUsers = new Map();
@@ -240,17 +240,7 @@ io.on('connection', async (socket) => {
             io.emit('chat message', msgData);
         });                        
 
-        const msgData = { 
-            type: data.type, 
-            user: data.user, 
-            content: data.content, 
-            timestamp: Date.now() 
-        };
-        
-        chatHistory.push(msgData);
-        if (chatHistory.length > 30) chatHistory.shift();
-        io.emit('chat message', msgData);
-    });
+    
 
    // D. 신고 접수 부분
     socket.on('report user', async (target) => {
@@ -328,19 +318,30 @@ socket.on('mute user', (target) => {
     });
         socket.on('get ip for ban', (targetId) => {
     if (ADMIN_IDS.includes(socket.user?.id)) {
+        // 1. 현재 접속자 확인
         const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
         
+        let targetIp = null;
+        let targetNick = targetId;
+
         if (targetSocket) {
             let rawIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
-            const targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp; // 수정
+            targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp;
+            targetNick = targetSocket.user.nick;
+        } else {
+            // 2. 접속자가 없으면 퇴장 유저 목록(quitUsers)에서 가져오기
+            targetIp = quitUsers.get(targetId);
+            targetNick = targetId + " (퇴장)"; // 닉네임 대신 ID에 퇴장 표시
+        }
 
+        if (targetIp) {
             socket.emit('open ban page', {
                 ip: targetIp,
                 id: targetId,
-                nick: targetSocket.user.nick
+                nick: targetNick
             });
         } else {
-            socket.emit('system message', "[오류] 해당 유저는 현재 오프라인입니다.");
+            socket.emit('system message', "[오류] 퇴장한 지 너무 오래되어 IP 정보를 찾을 수 없습니다.");
         }
     }
 });

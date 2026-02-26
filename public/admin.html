@@ -112,22 +112,37 @@
     </div>
 </div>
 <h2>💬 최근 채팅 기록 (Chat History)</h2>
-    <div class="table-wrapper" style="max-height: 400px; overflow-y: auto;">
+    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+        <input type="text" id="chatSearch" onkeyup="filterChats()" placeholder="닉네임, 아이디, IP 또는 내용 검색..." style="flex: 1; padding: 10px; background: #1a1a1a; border: 1px solid #444; color: #eee; border-radius: 4px;">
+    </div>
+    
+    <div class="table-wrapper">
         <table id="chatTable">
             <thead>
                 <tr>
                     <th style="width: 15%;">시간</th>
                     <th style="width: 15%;">닉네임 (ID)</th>
                     <th style="width: 15%;">IP 주소</th>
-                    <th style="width: 55%;">내용</th>
+                    <th style="width: 40%;">내용</th>
+                    <th style="width: 15%; text-align: center;">관리 (즉시 처벌)</th>
                 </tr>
             </thead>
             <tbody></tbody>
         </table>
     </div>
-</div>
+    
+    <div style="text-align: center; margin-top: 10px; margin-bottom: 30px;">
+        <button onclick="changePage(-1)" style="background: #444; color: white; padding: 6px 15px;">◀ 이전</button>
+        <span id="pageInfo" style="margin: 0 20px; font-weight: bold; color: #5dade2;">1 / 1</span>
+        <button onclick="changePage(1)" style="background: #444; color: white; padding: 6px 15px;">다음 ▶</button>
+    </div>
+</div> 
 <script>
-   // 1. 페이지 로드 시 파라미터 체크 및 입력
+let allChats = []; // 전체 채팅 데이터를 저장할 공간
+let filteredChats = []; // 검색된 채팅만 모아둘 공간
+let currentPage = 1;
+const chatsPerPage = 30; // 한 페이지에 보여줄 개수 (원하시면 50으로 수정 가능)
+
 window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
     const banIp = params.get('banIp');
@@ -135,27 +150,18 @@ window.addEventListener('DOMContentLoaded', () => {
     const banId = params.get('banId');
 
     if (banIp) document.getElementById('manualIp').value = banIp;
-    if (banNick) {
-        document.getElementById('manualNick').value = banId ? `${banNick}(${banId})` : banNick;
-    }
-
-    if (banIp || banNick) {
-        document.getElementById('manualReason').focus();
-    }
+    if (banNick) document.getElementById('manualNick').value = banId ? `${banNick}(${banId})` : banNick;
+    if (banIp || banNick) document.getElementById('manualReason').focus();
 
     loadData(); 
 });
 
-// 2. 핵심 데이터 로드 함수
 async function loadData() {
-    // 🚨 중요: 함수 안에서 pw 변수를 선언해야 합니다.
-    const urlParams = new URLSearchParams(window.location.search);
-    const pw = urlParams.get('pw');
-    
+    const pw = new URLSearchParams(window.location.search).get('pw');
     if (!pw) { alert("비밀번호가 필요합니다."); window.close(); return; }
 
     try {
-        // [신고 목록 로드]
+        // 1. 신고 목록
         const repRes = await fetch(`/api/admin/reports?pw=${pw}`);
         const reports = await repRes.json();
         document.getElementById('stat-reports').innerText = reports.length;
@@ -166,13 +172,13 @@ async function loadData() {
                 <td>${r.reporter}</td>
                 <td class="time-text">${new Date(r.date).toLocaleString()}</td>
                 <td>
-                    <button class="btn-ban" onclick="quickBan('${r.targetIp}', '${r.targetId}', '${r.targetNick}')">밴 조치</button>
+                    <button class="btn-ban" onclick="quickBan('${r.targetIp}', '${r.targetId}', '${r.targetNick}')">밴</button>
                     <button class="btn-dismiss" onclick="deleteReport('${r._id}')">기각</button>
                 </td>
             </tr>
         `).join('');
 
-        // [밴 목록 로드]
+        // 2. 밴 목록
         const banRes = await fetch(`/api/admin/bans?pw=${pw}`);
         const bans = await banRes.json();
         document.getElementById('stat-bans').innerText = bans.length;
@@ -185,11 +191,10 @@ async function loadData() {
             </tr>
         `).join('');
 
-        // [뮤트 목록 로드]
+        // 3. 뮤트 목록
         const muteRes = await fetch(`/api/admin/mutes?pw=${pw}`);
         const mutes = await muteRes.json();
         const muteBody = document.querySelector('#muteTable tbody');
-        
         if (mutes.length === 0) {
             muteBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#666;">현재 뮤트된 유저가 없습니다.</td></tr>';
         } else {
@@ -202,63 +207,97 @@ async function loadData() {
             `).join('');
         }
 
-        // [채팅 기록 로드] - 하나의 try 블록 안에 합쳤습니다.
+        // 4. 채팅 목록 (데이터만 가져오고 렌더링은 분리)
         const chatRes = await fetch(`/api/admin/chats?pw=${pw}`);
-        const chats = await chatRes.json();
-        const chatBody = document.querySelector('#chatTable tbody');
-        
-        if (chats.length === 0) {
-            chatBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#666;">기록된 채팅이 없습니다.</td></tr>';
-        } else {
-            chatBody.innerHTML = chats.map(c => {
-                const date = new Date(c.timestamp);
-                const timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}:${date.getSeconds().toString().padStart(2,'0')}`;
-                
-                const ipStr = c.ip || 'Unknown';
-                
-                let contentHtml = '';
-                if (c.type === 'image') {
-                    contentHtml = `<img src="${c.content}" style="max-height: 30px; border-radius: 4px;"> <span style="font-size:11px; color:#888;">(이모티콘)</span>`;
-                } else {
-                    const safeContent = c.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                    contentHtml = safeContent;
-                }
-
-                return `
-                    <tr>
-                        <td class="time-text">${timeStr}</td>
-                        <td><b style="color:#5dade2;">${c.user.nick}</b><br><span style="font-size:11px; color:#888;">${c.user.id}</span></td>
-                        <td><span class="badge-ip">${ipStr}</span></td>
-                        <td style="word-break: break-all;">${contentHtml}</td>
-                    </tr>
-                `;
-            }).join('');
-        }
+        allChats = await chatRes.json();
+        filterChats(); // 가져온 데이터를 검색 및 페이징하여 화면에 그림
 
         document.getElementById('server-status').innerText = "ONLINE";
         document.getElementById('server-status').style.color = "#2ecc71";
-
     } catch (e) {
-        console.error("데이터 로드 에러:", e);
         document.getElementById('server-status').innerText = "OFFLINE";
         document.getElementById('server-status').style.color = "#e74c3c";
     }
-} // loadData() 종료
+}
 
-// 3. 관리자 액션 함수들 (pw 변수 로드 로직 추가)
-async function manualBan() {
-    const pw = new URLSearchParams(window.location.search).get('pw');
-    const ip = document.getElementById('manualIp').value.trim();
-    const nick = document.getElementById('manualNick').value.trim();
-    const reason = document.getElementById('manualReason').value.trim();
-    if(!ip) return alert("IP 주소를 입력해주세요.");
+// --- 새롭게 추가된 검색 & 페이징 로직 ---
+function filterChats() {
+    const query = document.getElementById('chatSearch').value.toLowerCase();
     
-    const res = await fetch(`/api/admin/ban?pw=${pw}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip, id: 'manual', nick: nick || 'Unknown', reason: reason || '관리자 직접 차단' })
-    });
-    if(res.ok) { alert("IP 차단 완료"); loadData(); }
+    // 검색어가 있으면 닉네임, ID, IP, 내용 중에서 일치하는 것만 필터링
+    if (query) {
+        filteredChats = allChats.filter(c => 
+            (c.user.nick && c.user.nick.toLowerCase().includes(query)) ||
+            (c.user.id && c.user.id.toLowerCase().includes(query)) ||
+            (c.ip && c.ip.includes(query)) ||
+            (c.content && c.content.toLowerCase().includes(query))
+        );
+    } else {
+        filteredChats = [...allChats];
+    }
+    
+    currentPage = 1; // 검색할 땐 무조건 1페이지로
+    renderChats();
+}
+
+function changePage(step) {
+    const maxPage = Math.ceil(filteredChats.length / chatsPerPage) || 1;
+    currentPage += step;
+    if (currentPage < 1) currentPage = 1;
+    if (currentPage > maxPage) currentPage = maxPage;
+    renderChats();
+}
+
+function renderChats() {
+    const chatBody = document.querySelector('#chatTable tbody');
+    const maxPage = Math.ceil(filteredChats.length / chatsPerPage) || 1;
+    document.getElementById('pageInfo').innerText = `${currentPage} / ${maxPage} 페이지 (총 ${filteredChats.length}건)`;
+
+    if (filteredChats.length === 0) {
+        chatBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#666;">조건에 맞는 채팅이 없습니다.</td></tr>';
+        return;
+    }
+
+    // 현재 페이지에 해당하는 데이터만 뚝 잘라냄 (슬라이스)
+    const startIndex = (currentPage - 1) * chatsPerPage;
+    const pagedData = filteredChats.slice(startIndex, startIndex + chatsPerPage);
+
+    chatBody.innerHTML = pagedData.map(c => {
+        const date = new Date(c.timestamp);
+        const timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}:${date.getSeconds().toString().padStart(2,'0')}`;
+        const ipStr = c.ip || 'Unknown';
+        
+        let contentHtml = c.type === 'image' 
+            ? `<img src="${c.content}" style="max-height: 30px; border-radius: 4px;"> <span style="font-size:11px; color:#888;">(이모티콘)</span>`
+            : c.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+        // 즉시 처벌 버튼 (뮤트 & 밴) 추가
+        return `
+            <tr>
+                <td class="time-text">${timeStr}</td>
+                <td><b style="color:#5dade2;">${c.user.nick}</b><br><span style="font-size:11px; color:#888;">${c.user.id}</span></td>
+                <td><span class="badge-ip">${ipStr}</span></td>
+                <td style="word-break: break-all;">${contentHtml}</td>
+                <td style="text-align: center;">
+                    <button class="btn-dismiss" style="background: #e67e22; padding: 4px 8px; font-size: 11px;" onclick="quickMute('${c.user.id}', '${c.user.nick}')">뮤트</button>
+                    <button class="btn-ban" style="padding: 4px 8px; font-size: 11px;" onclick="quickBan('${ipStr}', '${c.user.id}', '${c.user.nick}')">밴</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// --- 관리자 액션 함수들 ---
+async function quickMute(id, nick) {
+    const pw = new URLSearchParams(window.location.search).get('pw');
+    if(confirm(`${nick} 님을 즉시 채팅 금지(뮤트) 하시겠습니까?`)) {
+        const res = await fetch(`/api/admin/mute?pw=${pw}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, nick })
+        });
+        if(res.ok) { alert("뮤트되었습니다."); loadData(); }
+    }
 }
 
 async function quickBan(ip, id, nick) {
@@ -272,6 +311,21 @@ async function quickBan(ip, id, nick) {
         });
         if(res.ok) { alert("차단되었습니다."); loadData(); }
     }
+}
+
+async function manualBan() {
+    const pw = new URLSearchParams(window.location.search).get('pw');
+    const ip = document.getElementById('manualIp').value.trim();
+    const nick = document.getElementById('manualNick').value.trim();
+    const reason = document.getElementById('manualReason').value.trim();
+    if(!ip) return alert("IP 주소를 입력해주세요.");
+    
+    const res = await fetch(`/api/admin/ban?pw=${pw}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip, id: 'manual', nick: nick || 'Unknown', reason: reason || '관리자 직접 차단' })
+    });
+    if(res.ok) { alert("수동 차단 완료"); loadData(); }
 }
 
 async function deleteReport(id) {
@@ -294,13 +348,9 @@ async function unmute(userId) {
     const pw = new URLSearchParams(window.location.search).get('pw');
     if(confirm(`${userId} 유저의 뮤트를 해제하시겠습니까?`)) {
         const res = await fetch(`/api/admin/mute/${userId}?pw=${pw}`, { method: 'DELETE' });
-        if(res.ok) {
-            alert("뮤트가 해제되었습니다.");
-            loadData();
-        }
+        if(res.ok) { alert("뮤트가 해제되었습니다."); loadData(); }
     }
 }
- 
 </script>
 </body>
 </html>

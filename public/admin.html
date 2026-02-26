@@ -293,15 +293,22 @@ function renderChats() {
         const date = new Date(c.timestamp);
         const timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}:${date.getSeconds().toString().padStart(2,'0')}`;
         const ipStr = c.ip || 'Unknown';
+        let nickHtml = `<b style="color:#5dade2;">${c.user.nick}</b>`;
+        let rowStyle = "";
         
+        if (c.type === 'whisper') {
+            nickHtml = `<span style="color:#ff9ff3; font-weight:bold;">[귓]</span> ${c.user.nick} <span style="color:#aaa;">→</span> ${c.targetNick}`;
+            rowStyle = "background-color: rgba(255, 159, 243, 0.05);"; // 귓속말은 살짝 핑크빛 배경
+        }
+
         let contentHtml = c.type === 'image' 
             ? `<img src="${c.content}" style="max-height: 30px; border-radius: 4px;"> <span style="font-size:11px; color:#888;">(이모티콘)</span>`
             : c.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
         return `
-            <tr>
+            <tr style="${rowStyle}">
                 <td class="time-text">${timeStr}</td>
-                <td><b style="color:#5dade2;">${c.user.nick}</b><br><span style="font-size:11px; color:#888;">${c.user.id}</span></td>
+                <td>${nickHtml}<br><span style="font-size:11px; color:#888;">${c.user.id}</span></td>
                 <td><span class="badge-ip">${ipStr}</span></td>
                 <td style="word-break: break-all;">${contentHtml}</td>
                 <td style="text-align: center;">

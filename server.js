@@ -57,7 +57,7 @@ let mutedUsers = {};
 const getUserListWithAdminStatus = () => {
     return Object.values(connectedUsers).map(u => ({
         ...u, 
-        isAdmin: u.isAdmin 
+        isAdmin: u.isAdmin
     }));
 };
 

@@ -297,8 +297,9 @@ io.on('connection', async (socket) => {
             
             const whisperData = { 
                 type: 'whisper', 
-                user: socket.user, // 보낸 사람 정보 (ID 포함되어 있음)
+                user: socket.user, 
                 targetNick: data.targetNick, 
+                ip: clientIp, 
                 targetId: targetUser ? targetUser.id : null, // 🚨 상대방의 고유 ID도 함께 저장!
                 content: data.content, 
                 timestamp: Date.now() 

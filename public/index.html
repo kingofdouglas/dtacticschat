@@ -53,39 +53,27 @@
         .admin-divider { color: #666; font-size: 10px; margin: 0 2px; }
 
         /* 접속자 목록 */
-        #user-list-container {  width: 160px; display: flex; flex-direction: column; background: #2e2e2e; transition: width 0.2s ease-in-out; /* 부드러운 가속도 추가 */ overflow: hidden; }
+        #user-list-container {  width: 160px; display: flex; flex-direction: column; background: #2e2e2e; transition: width 0.2s ease-in-out; overflow: hidden; }
         #user-count-header { padding: 2px 0; font-size: 13px;  color: #ddd; background: transparent; border-bottom: 1px solid #1f1f1f; text-align: center; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center;gap: 5px;min-height: 10px; white-space: nowrap;}
         #users {  flex: 1; overflow-y: auto; list-style: none; padding: 3px 3px;  margin: 0; font-size: 12px; color: #ddd;}
         #users li {padding: 3px 2px;display: flex;align-items: center;list-style: none;}
+        
         /* 툴팁 */
         #time-tooltip { position: absolute; background: rgba(0, 0, 0, 0.85); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; z-index: 9999; display: none; white-space: nowrap; }
             
-                #btn-go-admin {
-            background: none;      /* 배경 제거 */
-            border: none;          /* 테두리 제거 */
-            font-size: 20px;       /* 아이콘 크기 조절 */
-            cursor: pointer;      /* 마우스 커서 손가락 모양 */
-            padding: 0 5px;        /* 간격 조절 */
-            display: none;         /* 기본은 숨김 (관리자 인증 시 노출) */
-            vertical-align: middle; /* 전송 버튼과 높이 맞춤 */
-            transition: transform 0.2s; /* 부드러운 효과 */
-            outline: none;         /* 클릭 시 생기는 파란 테두리 제거 */
+        #btn-go-admin {
+            background: none; border: none; font-size: 20px; cursor: pointer; padding: 0 5px; 
+            display: none; vertical-align: middle; transition: transform 0.2s; outline: none; 
         }
 
-        #btn-user-setup:hover {
-            transform: rotate(45deg); /* 마우스 올리면 살짝 회전하는 효과 (선택사항) */
-            opacity: 0.8;             /* 살짝 투명하게 */
+        #btn-user-setup {
+            background: none; border: none; font-size: 18px; cursor: pointer; padding: 0 5px; outline: none;
+            transition: transform 0.2s; vertical-align: middle;
         }
-        <div id="user-settings-modal" style="display: none; position: absolute; bottom: 45px; right: 10px; background: rgba(35,35,35,0.98); border: 1px solid #444; padding: 15px; border-radius: 8px; z-index: 102; box-shadow: 2px 2px 10px rgba(0,0,0,0.5); width: 150px; color: #ddd;">
-                <div style="font-weight: bold; font-size: 13px; color: #5dade2; margin-bottom: 12px; border-bottom: 1px solid #444; padding-bottom: 5px;">내 설정 (DB 연동)</div>
-                <label style="display: flex; align-items: center; margin-bottom: 10px; font-size: 12px; cursor: pointer;">
-                    <input type="checkbox" id="set-notify" checked style="margin-right: 8px;"> 호출 알림
-                </label>
-                <label style="display: flex; align-items: center; margin-bottom: 15px; font-size: 12px; cursor: pointer;">
-                    <input type="checkbox" id="set-whisper" checked style="margin-right: 8px;"> 귓속말
-                </label>
-                <button id="close-settings-btn" style="width: 100%; background: #4a90e2; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 12px;">닫기</button>
-            </div>
+
+        #btn-user-setup:hover, #btn-go-admin:hover {
+            transform: rotate(45deg); opacity: 0.8;
+        }
         
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #4a4a4a; }
@@ -121,13 +109,24 @@
                 </div>
             </div>
 
+            <div id="user-settings-modal" style="display: none; position: absolute; bottom: 45px; right: 10px; background: rgba(35,35,35,0.98); border: 1px solid #444; padding: 15px; border-radius: 8px; z-index: 102; box-shadow: 2px 2px 10px rgba(0,0,0,0.5); width: 150px; color: #ddd;">
+                <div style="font-weight: bold; font-size: 13px; color: #5dade2; margin-bottom: 12px; border-bottom: 1px solid #444; padding-bottom: 5px;">내 설정 (DB 연동)</div>
+                <label style="display: flex; align-items: center; margin-bottom: 10px; font-size: 12px; cursor: pointer;">
+                    <input type="checkbox" id="set-notify" checked style="margin-right: 8px;"> 호출 알림
+                </label>
+                <label style="display: flex; align-items: center; margin-bottom: 15px; font-size: 12px; cursor: pointer;">
+                    <input type="checkbox" id="set-whisper" checked style="margin-right: 8px;"> 귓속말
+                </label>
+                <button id="close-settings-btn" style="width: 100%; background: #4a90e2; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 12px;">닫기</button>
+            </div>
+
             <form id="form" onsubmit="return false;">
-    <button id="emo-toggle-btn" type="button">+</button>
-    <input id="input" placeholder="채팅.." autocomplete="off" />
-    <button type="submit">전송</button>
-    <button id="btn-user-setup" type="button" style="background:none; border:none; font-size:18px; cursor:pointer; padding:0 5px; outline:none;" title="내 설정">⚙️</button>
-    <button id="btn-go-admin" type="button">🛠️</button>
-</form>
+                <button id="emo-toggle-btn" type="button">+</button>
+                <input id="input" placeholder="채팅.." autocomplete="off" />
+                <button type="submit">전송</button>
+                <button id="btn-user-setup" type="button" title="내 설정">⚙️</button>
+                <button id="btn-go-admin" type="button">🛠️</button>
+            </form>
         </div>
         <div id="resizer"></div>
         <div id="user-list-container">
@@ -165,26 +164,23 @@
         const emoPicker = document.getElementById('emo-picker');
         const timeTooltip = document.getElementById('time-tooltip');
         
-        // 뮤트 실행 함수 예시
         function muteUser(id, nick) {
-            // 서버가 객체를 원하므로 객체로 보냅니다.
             socket.emit('mute user', { id: id, nick: nick });
         }
-        // [1] 메시지 표시 로직
+
         function parseChatText(text) {
             let safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
             const urlRegex = /(https?:\/\/[^\s]+)/g;
             return safeText.replace(urlRegex, (url) => `<a href="${url}" target="_blank" style="color: #5dade2; text-decoration: underline;">${url}</a>`);
         }
+
         function openAdminBan(ip, id, nick) {
-            // 관리자 비번을 알고 있다면 파라미터에 비번까지 포함 가능
             const adminPw = prompt("관리자 비밀번호를 입력하세요.");
             if(!adminPw) return;
-        
-            // 정보를 쿼리 스트링으로 전달
             const url = `/admin?pw=${adminPw}&banIp=${encodeURIComponent(ip)}&banId=${encodeURIComponent(id)}&banNick=${encodeURIComponent(nick)}`;
             window.open(url, '_blank');
         }
+
         function displayMessage(data, isWhisper = false, whisperPrefix = "") {
             const item = document.createElement('li');
             if (data.user.nick === myNick) item.classList.add('my-message-bg');
@@ -205,27 +201,23 @@
             messages.appendChild(item);
             messages.scrollTop = messages.scrollHeight;
         }
-            // 1. 서버로부터 관리자 인증을 받았을 때 버튼 보이기
-            socket.on('admin auth', (isAdminAuth) => {
-                if (isAdminAuth) {
-                    isAdmin = true; // 클라이언트 변수 업데이트
-                    const adminBtn = document.getElementById('btn-go-admin');
-                    if (adminBtn) adminBtn.style.display = 'inline-block';
-                }
-            });
-            
-            // 2. ⚙️ 버튼 클릭 이벤트 (반드시 html 내 script 태그 안에 위치)
-           const adminBtn = document.getElementById('btn-go-admin');
-            if (adminBtn) {
-                adminBtn.onclick = () => {
-                    const pw = prompt("관리자 비밀번호를 입력하세요.");
-                    if (pw) {
-                        // "_blank"를 추가하여 새 탭(새 창)에서 엽니다.
-                        window.open("/admin?pw=" + pw, "_blank");
-                    }
-                };
+
+        socket.on('admin auth', (isAdminAuth) => {
+            if (isAdminAuth) {
+                isAdmin = true;
+                const adminBtn = document.getElementById('btn-go-admin');
+                if (adminBtn) adminBtn.style.display = 'inline-block';
             }
-        // [2] 소켓 이벤트 핸들러
+        });
+            
+        const adminBtn = document.getElementById('btn-go-admin');
+        if (adminBtn) {
+            adminBtn.onclick = () => {
+                const pw = prompt("관리자 비밀번호를 입력하세요.");
+                if (pw) window.open("/admin?pw=" + pw, "_blank");
+            };
+        }
+
         socket.on('chat history', (h) => h.forEach(d => displayMessage(d)));
         socket.on('chat message', (d) => displayMessage(d));
         socket.on('whisper', (d) => {
@@ -246,39 +238,36 @@
             messages.scrollTop = messages.scrollHeight;
         });
         socket.on('clear chat', () => { messages.innerHTML = ''; });
-        let isBannedState = false; // 밴 상태인지 체크하는 변수 추가
-
+        
+        let isBannedState = false; 
         socket.on('disconnect', () => {
-            // 밴 상태가 아닐 때만 2초 뒤 새로고침 (일반적인 서버 재시작 등 대응)
-            if (!isBannedState) {
-                setTimeout(() => location.reload(), 2000);
-            }
+            if (!isBannedState) setTimeout(() => location.reload(), 2000);
         });
+
+        // 🛠️ 내 설정 관련 로직
         let mySettings = { notify: true, whisper: true };
         
-                // 서버에서 내 DB 설정을 보내주면 체크박스에 반영
-                socket.on('load settings', (settings) => {
-                    mySettings = settings;
-                    document.getElementById('set-notify').checked = mySettings.notify;
-                    document.getElementById('set-whisper').checked = mySettings.whisper;
-                });
-        
-                // 설정창 열기/닫기
-                const userSettingsModal = document.getElementById('user-settings-modal');
-                document.getElementById('btn-user-setup').onclick = () => {
-                    userSettingsModal.style.display = userSettingsModal.style.display === 'none' ? 'block' : 'none';
-                };
-                document.getElementById('close-settings-btn').onclick = () => userSettingsModal.style.display = 'none';
-        
-                // 체크박스 클릭 시 서버 DB에 즉시 저장
-                document.getElementById('set-notify').onchange = (e) => {
-                    mySettings.notify = e.target.checked;
-                    socket.emit('update settings', mySettings);
-                };
-                document.getElementById('set-whisper').onchange = (e) => {
-                    mySettings.whisper = e.target.checked;
-                    socket.emit('update settings', mySettings);
-                };
+        socket.on('load settings', (settings) => {
+            mySettings = settings;
+            document.getElementById('set-notify').checked = mySettings.notify;
+            document.getElementById('set-whisper').checked = mySettings.whisper;
+        });
+
+        const userSettingsModal = document.getElementById('user-settings-modal');
+        document.getElementById('btn-user-setup').onclick = () => {
+            userSettingsModal.style.display = userSettingsModal.style.display === 'none' ? 'block' : 'none';
+        };
+        document.getElementById('close-settings-btn').onclick = () => userSettingsModal.style.display = 'none';
+
+        document.getElementById('set-notify').onchange = (e) => {
+            mySettings.notify = e.target.checked;
+            socket.emit('update settings', mySettings);
+        };
+        document.getElementById('set-whisper').onchange = (e) => {
+            mySettings.whisper = e.target.checked;
+            socket.emit('update settings', mySettings);
+        };
+
         socket.on('user list', (users) => {
             const list = document.getElementById('users');
             list.innerHTML = '';
@@ -292,16 +281,14 @@
                 list.appendChild(li);
             });
         });
-        // 소켓 이벤트 리스너 추가
-               socket.on('banned user', function(data) {
-                isBannedState = true; // 새로고침 방지 플래그 활성화
-                socket.io.opts.reconnection = false; // Socket.io 자체 재접속 방지
-                
-                // 화면에 아무것도 안 띄우고 싶다고 하셨으므로, 그냥 흰 화면이나 빈 상태로 둡니다.
-                document.body.innerHTML = ""; // 화면 내용 전체 삭제 (빈 화면)
-                window.stop(); // 로딩 중단
-            });
-        // [3] 클릭 및 팝업 제어 (통합 로직)
+
+        socket.on('banned user', function(data) {
+            isBannedState = true; 
+            socket.io.opts.reconnection = false; 
+            document.body.innerHTML = ""; 
+            window.stop(); 
+        });
+
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('clickable-nick')) {
                 const nick = e.target.getAttribute('data-nick');
@@ -314,19 +301,18 @@
                 const btnGetIp = document.getElementById('btn-get-ip');
         
                 if (isAdmin) {
-                    btnReport.style.display = 'none';  // 관리자는 신고 대신 제재를 하므로 숨김
-                    btnGetIp.style.display = 'block'; // IP 확인 버튼 노출
+                    btnReport.style.display = 'none';  
+                    btnGetIp.style.display = 'block'; 
                 } else {
                     btnReport.style.display = 'block';
                     btnGetIp.style.display = 'none';
                 }
-                // 관리자 UI 및 토글 처리
+                
                 const adminControls = document.getElementById('admin-controls');
                 if (isAdmin) {
                     adminControls.style.display = 'block';
                     const isMuted = localMutedIds.has(selectedUser.id);
                     document.getElementById('btn-mute-toggle').innerText = isMuted ? "해제" : "채금";
-                    // 밴은 상태 확인이 복잡하므로 기본값 '밴' 유지 (관리자 페이지 연동)
                     document.getElementById('btn-ban-toggle').innerText = "밴";
                 } else {
                     adminControls.style.display = 'none';
@@ -340,14 +326,12 @@
             }
             if (!emoPicker.contains(e.target) && e.target.id !== 'emo-toggle-btn') emoPicker.style.display = 'none';
         });
-        // IP 확인 버튼 클릭 이벤트 추가
-            document.getElementById('btn-get-ip').onclick = () => {
-                if (selectedUser) {
-                    socket.emit('get user ip', selectedUser.id);
-                }
-                userPopup.style.display = 'none';
-            };
-        // [4] 버튼 기능 구현
+
+        document.getElementById('btn-get-ip').onclick = () => {
+            if (selectedUser) socket.emit('get user ip', selectedUser.id);
+            userPopup.style.display = 'none';
+        };
+
         document.getElementById('btn-whisper').onclick = () => { input.value = `/w ${selectedUser.nick} `; input.focus(); userPopup.style.display='none'; };
         
         document.getElementById('btn-call').onclick = () => {
@@ -369,8 +353,6 @@
             userPopup.style.display='none';
         };
         
-
-        // 관리자 전용: 차단/해제 토글
         document.getElementById('btn-mute-toggle').onclick = () => {
             const isCurrentlyMuted = localMutedIds.has(selectedUser.id);
             if (isCurrentlyMuted) {
@@ -383,25 +365,21 @@
             userPopup.style.display='none';
         };
 
-        // 1. 밴 버튼 클릭 시 서버에 IP 요청
-document.getElementById('btn-ban-toggle').onclick = () => {
-    if (confirm(`${selectedUser.nick}님을 밴 하시겠습니까?\n사유 입력을 위해 관리자 페이지로 이동합니다.`)) {
-        socket.emit('get ip for ban', selectedUser.id);
-    }
-    userPopup.style.display = 'none';
-};
+        document.getElementById('btn-ban-toggle').onclick = () => {
+            if (confirm(`${selectedUser.nick}님을 밴 하시겠습니까?\n사유 입력을 위해 관리자 페이지로 이동합니다.`)) {
+                socket.emit('get ip for ban', selectedUser.id);
+            }
+            userPopup.style.display = 'none';
+        };
 
-// 2. 서버가 IP와 함께 응답을 주면 관리자 페이지 열기
-socket.on('open ban page', (data) => {
-    const pw = prompt("관리자 비밀번호를 입력하세요.");
-    if (pw) {
-        // 모든 정보(IP, ID, Nick)를 쿼리 스트링으로 한 번에 전송
-        const url = `/admin?pw=${pw}&banIp=${encodeURIComponent(data.ip)}&banId=${encodeURIComponent(data.id)}&banNick=${encodeURIComponent(data.nick)}`;
-        window.open(url, "_blank");
-    }
-});
+        socket.on('open ban page', (data) => {
+            const pw = prompt("관리자 비밀번호를 입력하세요.");
+            if (pw) {
+                const url = `/admin?pw=${pw}&banIp=${encodeURIComponent(data.ip)}&banId=${encodeURIComponent(data.id)}&banNick=${encodeURIComponent(data.nick)}`;
+                window.open(url, "_blank");
+            }
+        });
 
-        // [5] 기타 UI 기능 (이모티콘, 리사이저 등)
         let emos = []; let pg = 1;
         let recentEmos = JSON.parse(localStorage.getItem('recentEmos') || '[]');
 
@@ -444,7 +422,6 @@ socket.on('open ban page', (data) => {
             emoPicker.style.display = 'none';
         };
 
-        // 리사이저 및 툴팁 로직은 기존과 동일하게 유지...
         const resizer = document.getElementById('resizer');
         const userListCont = document.getElementById('user-list-container');
         let isResizing = false;
@@ -459,6 +436,7 @@ socket.on('open ban page', (data) => {
         document.addEventListener('mouseup', () => { isResizing = false; document.body.style.userSelect = 'auto'; });
 
         let mouseX, mouseY, tooltipTimeout;
+        
         function formatTimeDiff(rawTime) {
             const ts = new Date(rawTime).getTime(); 
             const m = Math.floor((Date.now() - ts) / 60000);
@@ -487,21 +465,18 @@ socket.on('open ban page', (data) => {
         let lastUserListWidth = '160px'; 
         let isUserListOpen = true;
         
-                // --- [수정된 토글 로직] ---
         document.getElementById('user-count-header').onclick = () => {
             const container = document.getElementById('user-list-container');
             const usersUl = document.getElementById('users'); 
             const resizer = document.getElementById('resizer');
             
             if (isUserListOpen) {
-                // 닫기
                 lastUserListWidth = container.style.width || '160px';
-                container.style.width = '35px'; // 아이콘이 잘 안보일 수 있어 35px 권장
+                container.style.width = '35px';
                 usersUl.style.display = 'none';
-                resizer.style.visibility = 'hidden'; // display:none 대신 visibility 사용 시 레이아웃 흔들림 적음
+                resizer.style.visibility = 'hidden';
                 isUserListOpen = false;
             } else {
-                // 열기
                 container.style.width = lastUserListWidth;
                 resizer.style.visibility = 'visible';
                 isUserListOpen = true;
@@ -511,22 +486,3 @@ socket.on('open ban page', (data) => {
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

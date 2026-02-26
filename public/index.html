@@ -218,12 +218,14 @@
             };
         }
 
-        socket.on('chat history', (h) => {
+            socket.on('chat history', (h) => {
             document.getElementById('messages').innerHTML = ''; 
             h.forEach(d => {
                 if (d.type === 'whisper') {
-                    const replyTarget = (d.user.nick === myNick) ? d.targetNick : d.user.nick;
-                    const prefixText = (d.user.nick === myNick) ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
+                    // 🚨 닉네임 대신 고유 ID(myId)로 내가 보낸 건지 확인합니다.
+                    const isMe = (d.user.id === myId); 
+                    const replyTarget = isMe ? d.targetNick : d.user.nick;
+                    const prefixText = isMe ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
                     const prefixHtml = `<span class="reply-btn" data-nick="${replyTarget}" style="cursor: pointer; text-decoration: none;" title="답장하기">${prefixText}</span>`;
                     displayMessage(d, true, prefixHtml);
                 } else {
@@ -235,8 +237,10 @@
         socket.on('chat message', (d) => displayMessage(d));
         
         socket.on('whisper', (d) => {
-            const replyTarget = (d.user.nick === myNick) ? d.targetNick : d.user.nick;
-            const prefixText = (d.user.nick === myNick) ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
+            // 🚨 여기서도 myId를 기준으로 To/From을 결정합니다.
+            const isMe = (d.user.id === myId);
+            const replyTarget = isMe ? d.targetNick : d.user.nick;
+            const prefixText = isMe ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
             const prefixHtml = `<span class="reply-btn" data-nick="${replyTarget}" style="cursor: pointer; text-decoration: none;" title="답장하기">${prefixText}</span>`;
             displayMessage(d, true, prefixHtml);
         });
@@ -599,6 +603,7 @@
     </script>
 </body>
 </html>
+
 
 
 

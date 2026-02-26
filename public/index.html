@@ -145,6 +145,10 @@
         const callCooldowns = {};
 
         socket.emit('join', myInfo);
+        socket.on('connect', () => {
+            document.getElementById('messages').innerHTML = ''; // 화면 한 번 싹 비우기
+            socket.emit('join', myInfo); // 접속/재접속할 때마다 확실하게 입장 신고!
+        });
         socket.on('admin auth', () => { isAdmin = true; });
 
         const messages = document.getElementById('messages');
@@ -207,7 +211,19 @@
             };
         }
 
-        socket.on('chat history', (h) => h.forEach(d => displayMessage(d)));
+        socket.on('chat history', (h) => {
+            document.getElementById('messages').innerHTML = ''; 
+            h.forEach(d => {
+                if (d.type === 'whisper') {
+                    const replyTarget = (d.user.nick === myNick) ? d.targetNick : d.user.nick;
+                    const prefixText = (d.user.nick === myNick) ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
+                    const prefixHtml = `<span class="reply-btn" data-nick="${replyTarget}" style="cursor: pointer; text-decoration: none;" title="답장하기">${prefixText}</span>`;
+                    displayMessage(d, true, prefixHtml);
+                } else {
+                    displayMessage(d);
+                }
+            });
+        });
         socket.on('chat message', (d) => displayMessage(d));
         
         socket.on('whisper', (d) => {
@@ -575,5 +591,6 @@
     </script>
 </body>
 </html>
+
 
 

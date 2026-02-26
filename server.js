@@ -232,7 +232,7 @@ io.on('connection', async (socket) => {
         
         if (ADMIN_IDS.includes(userData.id)) socket.emit('admin auth', true);
     
-        Chat.find().sort({ timestamp: -1 }).limit(50).then(history => {
+        Chat.find().sort({ timestamp: -1 }).limit(30).then(history => {
             if (history.length > 0) socket.emit('chat history', history.reverse()); 
         }).catch(err => console.error("채팅 로딩 에러:", err));
         

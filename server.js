@@ -33,6 +33,8 @@ const Ban = mongoose.model('Ban', new mongoose.Schema({
 
 // 4. 서버 내부 변수
 let chatHistory = [];
+const quitUsers = new Map();
+
 const connectedUsers = {};
 // 뮤트 관리를 Set에서 Object로 변경 (ID: {nick, date} 형태)
 let mutedUsers = {}; 
@@ -168,16 +170,32 @@ io.on('connection', async (socket) => {
             return; // 이후 로직 실행 방지
         }
     } catch (err) { console.error("Ban check error:", err); }
-
-    // B. 유저 입장
+    
+    // B. 유저 입장 (수정본)
     socket.on('join', (userData) => {
-        socket.user = userData;
-        connectedUsers[socket.id] = userData;
+        // 1. 중복 닉네임 처리 로직 추가
+        let finalNick = userData.nick;
+        const currentUsers = Object.values(connectedUsers);
+        
+        // 동일 ID 혹은 동일 IP를 사용하는 유저 수 계산
+        const duplicates = currentUsers.filter(u => 
+            u.id === userData.id || u.ip === clientIp
+        ).length;
+    
+        if (duplicates > 0) {
+            finalNick = `${userData.nick} (${duplicates})`;
+        }
+    
+        // 최종 유저 정보 저장 (ip 포함)
+        const finalUserData = { ...userData, nick: finalNick, ip: clientIp };
+        
+        socket.user = finalUserData;
+        connectedUsers[socket.id] = finalUserData;
         
         if (ADMIN_IDS.includes(userData.id)) {
             socket.emit('admin auth', true);
         }
-
+    
         if (chatHistory.length > 0) socket.emit('chat history', chatHistory);
         io.emit('user list', getUserListWithAdminStatus());
     });
@@ -299,17 +317,26 @@ socket.on('mute user', (target) => {
 });
     socket.on('get user ip', (targetId) => {
     if (ADMIN_IDS.includes(socket.user?.id)) {
+        // 1. 현재 접속자 확인
         const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
+        
+        let targetIp = null;
+        let targetNick = targetId;
+
         if (targetSocket) {
             let rawIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
-            const targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp; // 수정
-            
-            socket.emit('system message', `[보안] ${targetSocket.user.nick}님의 IP: ${targetIp}`);
+            targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp;
+            targetNick = targetSocket.user.nick;
         } else {
-            socket.emit('system message', `[오류] 대상 유저를 찾을 수 없습니다.`);
+            // 2. 접속자가 없으면 퇴장 유저 목록에서 확인
+            targetIp = quitUsers.get(targetId);
         }
-    } else {
-        socket.emit('system message', `[경고] 권한이 없습니다.`);
+
+        if (targetIp) {
+            socket.emit('system message', `[보안] ${targetNick}님의 IP: ${targetIp}${targetSocket ? '' : ' (퇴장한 유저)'}`);
+        } else {
+            socket.emit('system message', `[오류] 대상 유저 정보를 찾을 수 없습니다.`);
+        }
     }
 });
     socket.on('clear chat', () => {
@@ -321,11 +348,15 @@ socket.on('mute user', (target) => {
 
     // H. 접속 종료
     socket.on('disconnect', () => {
-        if (connectedUsers[socket.id]) {
-            delete connectedUsers[socket.id];
-            io.emit('user list', getUserListWithAdminStatus());
-        }
-    });
+    if (socket.id && connectedUsers[socket.id]) {
+        const u = connectedUsers[socket.id];
+        // 퇴장 시 IP 정보를 10분간 보관 (ID를 키로 저장)
+        quitUsers.set(u.id, u.ip);
+        setTimeout(() => quitUsers.delete(u.id), 86400000); 
+
+        delete connectedUsers[socket.id];
+        io.emit('user list', getUserListWithAdminStatus());
+    }
 });
 
 const PORT = process.env.PORT || 3000;

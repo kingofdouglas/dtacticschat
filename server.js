@@ -212,7 +212,7 @@ io.on('connection', async (socket) => {
         io.emit('user list', getUserListWithAdminStatus());
         });
 
-        // C. 일반 채팅 (DB 연동 버전)
+           // C. 일반 채팅 (빠른 속도 + DB 백그라운드 저장)
         socket.on('chat message', async (data) => {
             if (data.user.id === 'guest') {
                 return socket.emit('system message', '게스트는 채팅을 할 수 없습니다.');
@@ -229,16 +229,14 @@ io.on('connection', async (socket) => {
                 timestamp: Date.now() 
             };
             
-            // 1. DB에 저장
-            try {
-                await Chat.create(msgData);
-            } catch (err) {
-                console.error("채팅 저장 에러:", err);
-            }
-    
-            // 2. 접속 중인 모두에게 전송
+            // 1. [핵심] 접속 중인 모두에게 '즉시' 쏴줍니다! (딜레이 제로)
             io.emit('chat message', msgData);
-        });                        
+    
+            // 2. DB 저장은 기다리지 않고 백그라운드로 던져놓습니다. (await 제거)
+            Chat.create(msgData).catch(err => {
+                console.error("채팅 저장 에러:", err);
+            });
+        });             
 
     
 

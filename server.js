@@ -31,48 +31,42 @@ const Ban = mongoose.model('Ban', new mongoose.Schema({
     reason: String, date: { type: Date, default: Date.now }
 }));
 
-// DB 스키마 채팅내역
+// DB 스키마 채팅내역 (오프라인 귓말 지원 추가)
 const Chat = mongoose.model('Chat', new mongoose.Schema({
-    type: String, // 'text' 또는 'image'
-    user: Object, // { id, nick, icon }
-    ip: String,   // [추가] 채팅 작성자의 IP 저장
+    type: String, 
+    user: Object, 
+    ip: String,   
     content: String,
-    targetNick: String, // 🚨 오프라인 귓속말을 위해 타겟 닉네임 추가
+    targetNick: String, 
     timestamp: { type: Date, default: Date.now, expires: 2592000 }
 }));
+
 // 개인설정 저장
 const UserSetting = mongoose.model('UserSetting', new mongoose.Schema({
     id: String,
     notify: { type: Boolean, default: true },
     whisper: { type: Boolean, default: true }
 }));
-const quitUsers = new Map();
 
+const quitUsers = new Map();
 const connectedUsers = {};
-// 뮤트 관리를 Set에서 Object로 변경 (ID: {nick, date} 형태)
 let mutedUsers = {}; 
 
-// 5. 유틸리티 함수
+// 유틸리티 함수
 const getUserListWithAdminStatus = () => {
     return Object.values(connectedUsers).map(u => ({
         ...u, isAdmin: ADMIN_IDS.includes(u.id)
     }));
 };
 
-// 6. 보안 미들웨어 (관리자 API용)
+// 보안 미들웨어 (관리자 API용)
 const adminAuth = (req, res, next) => {
     const clientPw = req.query.pw || req.body.pw;
-    if (clientPw === ADMIN_PW) {
-        next();
-    } else {
-        res.status(403).json({ error: "접근 권한이 없습니다." });
-    }
+    if (clientPw === ADMIN_PW) next();
+    else res.status(403).json({ error: "접근 권한이 없습니다." });
 };
 
-// ------------------------------------------------------------------
-// 7. HTTP 경로 (Route) 및 관리자 API
-// ------------------------------------------------------------------
-
+// --- HTTP 경로 (Route) 및 관리자 API ---
 app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
 
 app.get('/admin', (req, res) => {
@@ -88,45 +82,35 @@ app.get('/admin', (req, res) => {
         `);
     }
 });
-// [API] 전체 채팅 기록 조회 (최신순 1000개 제한 등 조절 가능)
+
 app.get('/api/admin/chats', adminAuth, async (req, res) => {
     try {
-        // 관리자가 보기 편하도록 최신 글을 먼저(내림차순) 불러옵니다.
         const allChats = await Chat.find().sort({ timestamp: -1 }).limit(1000); 
         res.json(allChats);
     } catch (err) {
         res.status(500).json({ error: "채팅 기록을 불러오는 데 실패했습니다." });
     }
 });
-// [API] 신고 내역 조회
+
 app.get('/api/admin/reports', adminAuth, async (req, res) => {
     const reports = await Report.find().sort({ date: -1 });
     res.json(reports);
 });
 
-// [API] 신고 내역 기각(삭제)
 app.delete('/api/admin/report/:id', adminAuth, async (req, res) => {
     await Report.findByIdAndDelete(req.params.id);
     res.json({ success: true });
 });
 
-// [API] 밴 목록 조회
 app.get('/api/admin/bans', adminAuth, async (req, res) => {
     let bans = await Ban.find().sort({ date: -1 }).lean();
-    bans = bans.map(ban => ({
-        ...ban,
-        ip: ban.ip.includes(',') ? ban.ip.split(',')[0].trim() : ban.ip
-    }));
-    
+    bans = bans.map(ban => ({ ...ban, ip: ban.ip.includes(',') ? ban.ip.split(',')[0].trim() : ban.ip }));
     res.json(bans);
 });
 
-// [API] 밴 실행
 app.post('/api/admin/ban', adminAuth, async (req, res) => {
     const { ip, id, nick, reason } = req.body;
     await Ban.create({ ip, id, nick, reason });
-    
-    // 현재 접속자 중 해당 IP를 쓰는 소켓들 다 찾아내서 쫓아내기
     const sockets = await io.fetchSockets();
     for (const s of sockets) {
         let sIp = s.handshake.headers['x-forwarded-for'] || s.handshake.address;
@@ -138,23 +122,18 @@ app.post('/api/admin/ban', adminAuth, async (req, res) => {
     res.json({ success: true });
 });
 
-// [API] 밴 해제
 app.delete('/api/admin/ban/:id', adminAuth, async (req, res) => {
     await Ban.findByIdAndDelete(req.params.id);
     res.json({ success: true });
 });
 
-// [API] 실시간 뮤트 목록 조회 (Set 대신 객체 사용)
 app.get('/api/admin/mutes', adminAuth, (req, res) => {
     const muteList = Object.keys(mutedUsers).map(id => ({
-        id: id,
-        nick: mutedUsers[id].nick,
-        date: mutedUsers[id].date
+        id: id, nick: mutedUsers[id].nick, date: mutedUsers[id].date
     }));
     res.json(muteList);
 });
 
-// [API] 뮤트 실행 (어드민 페이지용)
 app.post('/api/admin/mute', adminAuth, (req, res) => {
     const { id, nick } = req.body;
     mutedUsers[id] = { nick: nick || 'Unknown', date: new Date() };
@@ -162,7 +141,6 @@ app.post('/api/admin/mute', adminAuth, (req, res) => {
     res.json({ success: true });
 });
 
-// [API] 뮤트 해제
 app.delete('/api/admin/mute/:id', adminAuth, (req, res) => {
     const targetId = req.params.id;
     if (mutedUsers[targetId]) {
@@ -173,7 +151,6 @@ app.delete('/api/admin/mute/:id', adminAuth, (req, res) => {
     }
 });
 
-// 이모티콘 목록
 app.get('/api/emoticons', (req, res) => {
     const emoticonsDir = path.join(__dirname, 'public', 'emoticons');
     fs.readdir(emoticonsDir, (err, files) => {
@@ -183,10 +160,7 @@ app.get('/api/emoticons', (req, res) => {
     });
 });
 
-// ------------------------------------------------------------------
-// 8. 실시간 소켓 로직 (Socket.io)
-// ------------------------------------------------------------------
-
+// --- 실시간 소켓 로직 (Socket.io) ---
 io.on('connection', async (socket) => {
     let clientIp = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
     if (clientIp.includes(',')) clientIp = clientIp.split(',')[0].trim();
@@ -196,190 +170,123 @@ io.on('connection', async (socket) => {
         if (isBanned) {
             socket.emit('system message', `차단된 IP입니다. (사유: ${isBanned.reason})`);
             socket.emit('banned user', {reason: isBanned.reason,date: isBanned.date});
-            socket.disconnect(true); // true를 넣어 강제 종료
-            return; // 이후 로직 실행 방지
+            socket.disconnect(true);
+            return;
         }
-    } catch (err) { console.error("Ban check error:", err); }
+    } catch (err) {}
     
-    // B. 유저 입장 (수정본)
-  socket.on('join', async (userData) => { // 🚨 async 꼭 추가!
+    socket.on('join', async (userData) => { 
         let finalNick = userData.nick;
         const currentUsers = Object.values(connectedUsers);
         
-        const duplicates = currentUsers.filter(u => 
-            u.id === userData.id || u.ip === clientIp
-        ).length;
+        const duplicates = currentUsers.filter(u => u.id === userData.id || u.ip === clientIp).length;
     
+        // 중복 접속 닉네임 언더바(_) 처리
         if (duplicates > 0) finalNick = `${userData.nick}_(${duplicates})`;
         const finalUserData = { ...userData, nick: finalNick, ip: clientIp };
         
-        // --- [추가됨] DB에서 유저 설정 불러오기 ---
         try {
             let settings = await UserSetting.findOne({ id: userData.id });
             if (!settings) {
-                // 저장된 설정이 없으면 기본값(모두 켜짐)으로 DB에 새로 생성
                 settings = await UserSetting.create({ id: userData.id, notify: true, whisper: true });
             }
             finalUserData.settings = { notify: settings.notify, whisper: settings.whisper };
-            socket.emit('load settings', finalUserData.settings); // 내 화면 체크박스용으로 전송
+            socket.emit('load settings', finalUserData.settings); 
         } catch(e) {
-            console.error("설정 로드 에러:", e);
             finalUserData.settings = { notify: true, whisper: true };
         }
-        // -------------------------------------
 
         socket.user = finalUserData;
         connectedUsers[socket.id] = finalUserData;
         
         if (ADMIN_IDS.includes(userData.id)) socket.emit('admin auth', true);
     
+        // 오프라인 귓속말 & 내 채팅 가져오기
         Chat.find({
             $or: [
-                { type: { $ne: 'whisper' } }, // 일반 채팅 (text, image)
-                { type: 'whisper', targetNick: finalNick }, // 남이 나에게 보낸 귓말
-                { type: 'whisper', 'user.nick': finalNick } // 내가 남에게 보낸 귓말
+                { type: { $ne: 'whisper' } },
+                { type: 'whisper', targetNick: finalNick },
+                { type: 'whisper', 'user.nick': finalNick }
             ]
         }).sort({ timestamp: -1 }).limit(30).then(history => {
             if (history.length > 0) socket.emit('chat history', history.reverse()); 
-        }).catch(err => console.error("채팅 로딩 에러:", err));
-
-    // --- [추가됨] 클라이언트가 설정을 바꿨을 때 DB 갱신 ---
-    socket.on('update settings', async (settings) => {
-        if (!socket.user) return;
-        socket.user.settings = settings; // 서버 메모리 갱신
-        if(connectedUsers[socket.id]) connectedUsers[socket.id].settings = settings;
+        }).catch(err => {});
         
-        try { // DB 갱신
-            await UserSetting.updateOne({ id: socket.user.id }, { $set: settings }, { upsert: true });
-        } catch(e) { console.error("설정 저장 에러:", e); }
+        io.emit('user list', getUserListWithAdminStatus());
     });
 
-           // C. 일반 채팅 (빠른 속도 + DB 백그라운드 저장)
-        socket.on('chat message', async (data) => {
-            if (data.user.id === 'guest') {
-                return socket.emit('system message', '게스트는 채팅을 할 수 없습니다.');
-            }
-    
-            if (mutedUsers[data.user.id]) {
-                return socket.emit('system message', '관리자에 의해 채팅이 금지된 상태입니다.');
-            }
-    
-            const msgData = { 
-                type: data.type, 
-                user: data.user, 
-                ip: clientIp,
-                content: data.content, 
-                timestamp: Date.now() 
-            };
-            
-            // 1. [핵심] 접속 중인 모두에게 '즉시' 쏴줍니다! (딜레이 제로)
-            io.emit('chat message', msgData);
-    
-            // 2. DB 저장은 기다리지 않고 백그라운드로 던져놓습니다. (await 제거)
-            Chat.create(msgData).catch(err => {
-                console.error("채팅 저장 에러:", err);
-            });
-        });             
+    socket.on('update settings', async (settings) => {
+        if (!socket.user) return;
+        socket.user.settings = settings; 
+        if(connectedUsers[socket.id]) connectedUsers[socket.id].settings = settings;
+        try { await UserSetting.updateOne({ id: socket.user.id }, { $set: settings }, { upsert: true }); } catch(e) {}
+    });
 
+    socket.on('chat message', async (data) => {
+        if (data.user.id === 'guest') return socket.emit('system message', '게스트는 채팅을 할 수 없습니다.');
+        if (mutedUsers[data.user.id]) return socket.emit('system message', '관리자에 의해 채팅이 금지된 상태입니다.');
     
+        const msgData = { type: data.type, user: data.user, ip: clientIp, content: data.content, timestamp: Date.now() };
+        io.emit('chat message', msgData);
+        Chat.create(msgData).catch(err => {});
+    });              
 
-   // D. 신고 접수 부분
     socket.on('report user', async (target) => {
         const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === target.id);
-        
-        // 수정: rawIp에서 첫 번째 IP만 추출
         let rawIp = targetSocket ? (targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address) : 'Unknown';
         const targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp;
     
-        const newReport = new Report({
-            targetNick: target.nick,
-            targetId: target.id,
-            targetIp: targetIp, // 이제 깔끔한 IP가 저장됨
-            reporter: socket.user ? socket.user.nick : 'Unknown'
-        });
-        await newReport.save();
+        await new Report({ targetNick: target.nick, targetId: target.id, targetIp: targetIp, reporter: socket.user ? socket.user.nick : 'Unknown' }).save();
         socket.emit('system message', `[알림] ${target.nick}님에 대한 신고가 접수되었습니다.`);
     });
 
-            // E. 귓속말 (오프라인 지원 완벽 픽스)
-            socket.on('whisper', async (data) => {
-                let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
-                
-                // 1. DB에 귓속말 우선 저장 (상대방이 오프라인이어도 나중에 볼 수 있도록)
-                const whisperData = { 
-                    type: 'whisper', 
-                    user: data.user, 
-                    targetNick: data.targetNick,
-                    content: data.content,
-                    timestamp: Date.now() 
-                };
-                try { await Chat.create(whisperData); } catch(e) { console.error("귓말 저장 에러:", e); }
+    socket.on('whisper', async (data) => {
+        let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
         
-                if (targetSocketId) {
-                    const targetUser = connectedUsers[targetSocketId];
-                    
-                    // 🚨 귓속말 거부 상태 체크 
-                    if (targetUser.settings && targetUser.settings.whisper === false) {
-                        return socket.emit('system message', `[안내] ${data.targetNick}님은 귓속말을 거부하고 있습니다.`);
-                    }
-        
-                    io.to(targetSocketId).emit('whisper', whisperData); 
-                } else {
-                    // 접속하지 않은 유저에게도 DB에는 남겼음을 알림
-                    socket.emit('system message', `[안내] ${data.targetNick}님은 현재 오프라인입니다. (메시지는 남겨집니다)`);
-                }
-                
-                // 나 자신에게도 표시
-                socket.emit('whisper', whisperData); 
-            });
-        
-            // F. 호출
-            socket.on('call user', (data) => {
-                let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
-                
-                if (targetSocketId) {
-                    const targetUser = connectedUsers[targetSocketId];
-                    
-                    // 🚨 알림(호출) 거부 상태 체크
-                    const isNotifyAllowed = targetUser.settings ? targetUser.settings.notify : true;
-                    
-                    if (!isNotifyAllowed) {
-                        return socket.emit('system message', `[안내] ${data.targetNick}님은 알람(호출)을 거부하고 있습니다.`);
-                    }
-        
-                    io.to(targetSocketId).emit('call alert', { sender: data.sender });
-                    socket.emit('system message', `[안내] ${data.targetNick}님을 호출했습니다.`);
-                } else {
-                    socket.emit('system message', '[안내] 접속 중인 유저가 아닙니다.');
-                }
-            });
+        const whisperData = { type: 'whisper', user: data.user, targetNick: data.targetNick, content: data.content, timestamp: Date.now() };
+        try { await Chat.create(whisperData); } catch(e) {}
 
-    // G. 관리자 전용 제어 (Mute 수정본)
-socket.on('mute user', (target) => { 
-    if (ADMIN_IDS.includes(socket.user?.id)) {
-        let targetId, targetNick;
-
-        // target이 객체 {id, nick}인 경우
-        if (target && typeof target === 'object') {
-            targetId = target.id;
-            targetNick = target.nick;
-        } 
-        // target이 단순 ID 문자열인 경우 (구형 방식 대응)
-        else {
-            targetId = target;
-            const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
-            targetNick = targetSocket ? targetSocket.user.nick : targetId;
+        if (targetSocketId) {
+            const targetUser = connectedUsers[targetSocketId];
+            if (targetUser.settings && targetUser.settings.whisper === false) {
+                return socket.emit('system message', `[안내] ${data.targetNick}님은 귓속말을 거부하고 있습니다.`);
+            }
+            io.to(targetSocketId).emit('whisper', whisperData); 
+        } else {
+            socket.emit('system message', `[안내] ${data.targetNick}님은 현재 오프라인입니다. (메시지는 남겨집니다)`);
         }
+        socket.emit('whisper', whisperData); 
+    });
 
-        if (!targetId) return;
+    socket.on('call user', (data) => {
+        let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
+        
+        if (targetSocketId) {
+            const targetUser = connectedUsers[targetSocketId];
+            if (targetUser.settings && targetUser.settings.notify === false) {
+                return socket.emit('system message', `[안내] ${data.targetNick}님은 알람(호출)을 거부하고 있습니다.`);
+            }
+            io.to(targetSocketId).emit('call alert', { sender: data.sender });
+            socket.emit('system message', `[안내] ${data.targetNick}님을 호출했습니다.`);
+        } else {
+            socket.emit('system message', '[안내] 접속 중인 유저가 아닙니다.');
+        }
+    });
 
-        mutedUsers[targetId] = {
-            nick: targetNick || 'Unknown',
-            date: new Date()
-        };
-        socket.emit('system message', `[관리] ${targetNick}님을 뮤트했습니다.`);
-    }
-});
+    socket.on('mute user', (target) => { 
+        if (ADMIN_IDS.includes(socket.user?.id)) {
+            let targetId, targetNick;
+            if (target && typeof target === 'object') { targetId = target.id; targetNick = target.nick; } 
+            else {
+                targetId = target;
+                const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
+                targetNick = targetSocket ? targetSocket.user.nick : targetId;
+            }
+            if (!targetId) return;
+            mutedUsers[targetId] = { nick: targetNick || 'Unknown', date: new Date() };
+            socket.emit('system message', `[관리] ${targetNick}님을 뮤트했습니다.`);
+        }
+    });
 
     socket.on('unmute user', (targetId) => {
         if (ADMIN_IDS.includes(socket.user?.id)) {
@@ -387,105 +294,78 @@ socket.on('mute user', (target) => {
             socket.emit('system message', `[관리] 해당 유저의 뮤트를 해제했습니다.`);
         }
     });
-   socket.on('get ip for ban', async (targetId) => { // async 추가
+
+    socket.on('get ip for ban', async (targetId) => { 
         if (ADMIN_IDS.includes(socket.user?.id)) {
-            // 1. 현재 접속자 확인
             const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
-            
-            let targetIp = null;
-            let targetNick = targetId;
+            let targetIp = null; let targetNick = targetId;
 
             if (targetSocket) {
                 let rawIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
                 targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp;
                 targetNick = targetSocket.user.nick;
             } else {
-                // 2. 접속자가 없으면 퇴장 유저 목록 확인
                 targetIp = quitUsers.get(targetId);
                 targetNick = targetId + " (최근 퇴장)";
             }
 
-            // 3. 그래도 없으면 DB 과거 채팅 내역에서 검색! (추가된 부분)
             if (!targetIp) {
                 try {
                     const pastChat = await Chat.findOne({ "user.id": targetId }).sort({ timestamp: -1 });
-                    if (pastChat && pastChat.ip) {
-                        targetIp = pastChat.ip;
-                        targetNick = pastChat.user.nick + " (과거 기록)";
-                    }
-                } catch (err) { console.error("DB IP 검색 에러:", err); }
+                    if (pastChat && pastChat.ip) { targetIp = pastChat.ip; targetNick = pastChat.user.nick + " (과거 기록)"; }
+                } catch (err) {}
             }
 
-            if (targetIp) {
-                socket.emit('open ban page', {
-                    ip: targetIp,
-                    id: targetId,
-                    nick: targetNick
-                });
-            } else {
-                socket.emit('system message', "[오류] 퇴장한 지 너무 오래되어 IP 정보를 찾을 수 없습니다.");
-            }
+            if (targetIp) socket.emit('open ban page', { ip: targetIp, id: targetId, nick: targetNick });
+            else socket.emit('system message', "[오류] 퇴장한 지 너무 오래되어 IP 정보를 찾을 수 없습니다.");
         }
     });
     
-    socket.on('get user ip', async (targetId) => { // async 추가!
+    socket.on('get user ip', async (targetId) => { 
         if (ADMIN_IDS.includes(socket.user?.id)) {
-            // 1. 현재 접속자 확인
             const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
-            
-            let targetIp = null;
-            let targetNick = targetId;
+            let targetIp = null; let targetNick = targetId;
 
             if (targetSocket) {
                 let rawIp = targetSocket.handshake.headers['x-forwarded-for'] || targetSocket.handshake.address;
                 targetIp = rawIp.includes(',') ? rawIp.split(',')[0].trim() : rawIp;
                 targetNick = targetSocket.user.nick;
             } else {
-                // 2. 접속자가 없으면 퇴장 유저 목록 확인
                 targetIp = quitUsers.get(targetId);
                 targetNick = targetId + " (최근 퇴장)";
             }
 
-            // 3. 그래도 없으면 DB 과거 채팅 내역에서 검색!
             if (!targetIp) {
                 try {
-                    // 해당 ID가 쓴 가장 최근 채팅을 찾음
                     const pastChat = await Chat.findOne({ "user.id": targetId }).sort({ timestamp: -1 });
-                    if (pastChat && pastChat.ip) {
-                        targetIp = pastChat.ip;
-                        targetNick = pastChat.user.nick + " (과거 기록)";
-                    }
-                } catch (err) { console.error("DB IP 검색 에러:", err); }
+                    if (pastChat && pastChat.ip) { targetIp = pastChat.ip; targetNick = pastChat.user.nick + " (과거 기록)"; }
+                } catch (err) {}
             }
 
-            if (targetIp) {
-                socket.emit('system message', `[보안] ${targetNick}님의 IP: ${targetIp}`);
-            } else {
-                socket.emit('system message', `[오류] 대상 유저 정보를 찾을 수 없습니다. (채팅 기록 없음)`);
-            }
+            if (targetIp) socket.emit('system message', `[보안] ${targetNick}님의 IP: ${targetIp}`);
+            else socket.emit('system message', `[오류] 대상 유저 정보를 찾을 수 없습니다. (채팅 기록 없음)`);
         }
     });
     
-   // 전체 청소 기능 (DB에서도 삭제)
     socket.on('clear chat', async () => {
         if (ADMIN_IDS.includes(socket.user?.id)) {
-            await Chat.deleteMany({}); // DB 채팅 내역 전부 삭제
-            io.emit('clear chat');     // 화면 청소
+            await Chat.deleteMany({});
+            io.emit('clear chat');     
         }
     });
-    // H. 접속 종료
-    socket.on('disconnect', () => {
-    if (socket.id && connectedUsers[socket.id]) {
-        const u = connectedUsers[socket.id];
-        // 퇴장 시 IP 정보를 10분간 보관 (ID를 키로 저장)
-        quitUsers.set(u.id, u.ip);
-        setTimeout(() => quitUsers.delete(u.id), 86400000); 
 
-        delete connectedUsers[socket.id];
-        io.emit('user list', getUserListWithAdminStatus());
-    }
-});
+    socket.on('disconnect', () => {
+        if (socket.id && connectedUsers[socket.id]) {
+            const u = connectedUsers[socket.id];
+            quitUsers.set(u.id, u.ip);
+            setTimeout(() => quitUsers.delete(u.id), 86400000); 
+
+            delete connectedUsers[socket.id];
+            io.emit('user list', getUserListWithAdminStatus());
+        }
+    });
     
-});
+}); // <--- 🚨 이 괄호가 지워졌기 때문에 서버가 실행되지 않았습니다. 복구 완료!
+
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => { console.log(`🚀 서버 실행 중: ${PORT}`); });

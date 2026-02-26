@@ -154,7 +154,14 @@
             document.getElementById('input').focus();
         };
 
-        socket.emit('join', myInfo); 
+        socket.on('connect', () => {
+            socket.emit('join', myInfo);
+        });
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === 'visible') {
+                if (!socket.connected) socket.connect();
+            }
+        });
         socket.on('admin auth', () => { isAdmin = true; });
 
         const messages = document.getElementById('messages');
@@ -574,6 +581,7 @@
     </script>
 </body>
 </html>
+
 
 
 

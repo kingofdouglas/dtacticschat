@@ -245,11 +245,16 @@ io.on('connection', async (socket) => {
         socket.emit('system message', `[알림] ${target.nick}님에 대한 신고가 접수되었습니다.`);
     });
 
-    socket.on('whisper', async (data) => {
+    ocket.on('whisper', (data) => { 
         let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
         
-        const whisperData = { type: 'whisper', user: data.user, targetNick: data.targetNick, content: data.content, timestamp: Date.now() };
-        try { await Chat.create(whisperData); } catch(e) {}
+        const whisperData = { 
+            type: 'whisper', 
+            user: data.user, 
+            targetNick: data.targetNick, 
+            content: data.content, 
+            timestamp: Date.now() 
+        };
 
         if (targetSocketId) {
             const targetUser = connectedUsers[targetSocketId];
@@ -260,7 +265,10 @@ io.on('connection', async (socket) => {
         } else {
             socket.emit('system message', `[안내] ${data.targetNick}님은 현재 오프라인입니다. (메시지는 남겨집니다)`);
         }
-        socket.emit('whisper', whisperData); 
+        
+        socket.emit('whisper', whisperData); // 나 자신에게도 즉시 표시
+
+        Chat.create(whisperData).catch(e => { console.error("귓말 저장 에러:", e); });
     });
 
     socket.on('call user', (data) => {

@@ -111,147 +111,196 @@
         </table>
     </div>
 </div>
-
+<h2>💬 최근 채팅 기록 (Chat History)</h2>
+    <div class="table-wrapper" style="max-height: 400px; overflow-y: auto;">
+        <table id="chatTable">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">시간</th>
+                    <th style="width: 15%;">닉네임 (ID)</th>
+                    <th style="width: 15%;">IP 주소</th>
+                    <th style="width: 55%;">내용</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
 <script>
+   // 1. 페이지 로드 시 파라미터 체크 및 입력
+window.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const banIp = params.get('banIp');
+    const banNick = params.get('banNick');
+    const banId = params.get('banId');
+
+    if (banIp) document.getElementById('manualIp').value = banIp;
+    if (banNick) {
+        document.getElementById('manualNick').value = banId ? `${banNick}(${banId})` : banNick;
+    }
+
+    if (banIp || banNick) {
+        document.getElementById('manualReason').focus();
+    }
+
+    loadData(); 
+});
+
+// 2. 핵심 데이터 로드 함수
+async function loadData() {
+    // 🚨 중요: 함수 안에서 pw 변수를 선언해야 합니다.
     const urlParams = new URLSearchParams(window.location.search);
     const pw = urlParams.get('pw');
     
-// 1. 페이지가 로드되자마자 실행되는 자동 입력 로직 (loadData 밖으로 분리)
-    window.addEventListener('DOMContentLoaded', () => {
-        const params = new URLSearchParams(window.location.search);
-        const banIp = params.get('banIp');
-        const banNick = params.get('banNick');
-        const banId = params.get('banId');
+    if (!pw) { alert("비밀번호가 필요합니다."); window.close(); return; }
 
-        if (banIp) document.getElementById('manualIp').value = banIp;
-        if (banNick) {
-            // ID가 있으면 닉네임(ID) 형태로 표시
-            document.getElementById('manualNick').value = banId ? `${banNick}(${banId})` : banNick;
-        }
+    try {
+        // [신고 목록 로드]
+        const repRes = await fetch(`/api/admin/reports?pw=${pw}`);
+        const reports = await repRes.json();
+        document.getElementById('stat-reports').innerText = reports.length;
+        document.querySelector('#reportTable tbody').innerHTML = reports.map(r => `
+            <tr>
+                <td><b>${r.targetNick}</b> (${r.targetId})</td>
+                <td><span class="badge-ip">${r.targetIp}</span></td>
+                <td>${r.reporter}</td>
+                <td class="time-text">${new Date(r.date).toLocaleString()}</td>
+                <td>
+                    <button class="btn-ban" onclick="quickBan('${r.targetIp}', '${r.targetId}', '${r.targetNick}')">밴 조치</button>
+                    <button class="btn-dismiss" onclick="deleteReport('${r._id}')">기각</button>
+                </td>
+            </tr>
+        `).join('');
 
-        if (banIp || banNick) {
-            document.getElementById('manualReason').focus();
-        }
+        // [밴 목록 로드]
+        const banRes = await fetch(`/api/admin/bans?pw=${pw}`);
+        const bans = await banRes.json();
+        document.getElementById('stat-bans').innerText = bans.length;
+        document.querySelector('#banTable tbody').innerHTML = bans.map(b => `
+            <tr>
+                <td>${b.nick || 'Unknown'}</td>
+                <td><span class="badge-ip">${b.ip}</span></td>
+                <td>${b.reason}</td>
+                <td><button class="btn-unban" onclick="unban('${b._id}')">차단 해제</button></td>
+            </tr>
+        `).join('');
 
-        loadData(); // 여기서 데이터를 불러옵니다.
-    });
-   
-    // 데이터를 서버에서 불러오는 핵심 함수
-    async function loadData() {
-        if (!pw) { alert("비밀번호가 필요합니다."); window.close(); return; }
-
-    
+        // [뮤트 목록 로드]
+        const muteRes = await fetch(`/api/admin/mutes?pw=${pw}`);
+        const mutes = await muteRes.json();
+        const muteBody = document.querySelector('#muteTable tbody');
         
-        try {
-            // 1. 신고 목록
-            const repRes = await fetch(`/api/admin/reports?pw=${pw}`);
-            const reports = await repRes.json();
-            document.getElementById('stat-reports').innerText = reports.length;
-            document.querySelector('#reportTable tbody').innerHTML = reports.map(r => `
+        if (mutes.length === 0) {
+            muteBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#666;">현재 뮤트된 유저가 없습니다.</td></tr>';
+        } else {
+            muteBody.innerHTML = mutes.map(m => `
                 <tr>
-                    <td><b>${r.targetNick}</b> (${r.targetId})</td>
-                    <td><span class="badge-ip">${r.targetIp}</span></td>
-                    <td>${r.reporter}</td>
-                    <td class="time-text">${new Date(r.date).toLocaleString()}</td>
-                    <td>
-                        <button class="btn-ban" onclick="quickBan('${r.targetIp}', '${r.targetId}', '${r.targetNick}')">밴 조치</button>
-                        <button class="btn-dismiss" onclick="deleteReport('${r._id}')">기각</button>
-                    </td>
+                    <td><b>${m.nick}</b> (${m.id})</td>
+                    <td><span style="color:#e74c3c; font-weight:bold;">MUTED</span></td>
+                    <td><button class="btn-unban" onclick="unmute('${m.id}')">뮤트 해제</button></td>
                 </tr>
             `).join('');
+        }
 
-            // 2. 밴 목록
-            const banRes = await fetch(`/api/admin/bans?pw=${pw}`);
-            const bans = await banRes.json();
-            document.getElementById('stat-bans').innerText = bans.length;
-            document.querySelector('#banTable tbody').innerHTML = bans.map(b => `
-                <tr>
-                    <td>${b.nick || 'Unknown'}</td>
-                    <td><span class="badge-ip">${b.ip}</span></td>
-                    <td>${b.reason}</td>
-                    <td><button class="btn-unban" onclick="unban('${b._id}')">차단 해제</button></td>
-                </tr>
-            `).join('');
+        // [채팅 기록 로드] - 하나의 try 블록 안에 합쳤습니다.
+        const chatRes = await fetch(`/api/admin/chats?pw=${pw}`);
+        const chats = await chatRes.json();
+        const chatBody = document.querySelector('#chatTable tbody');
+        
+        if (chats.length === 0) {
+            chatBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#666;">기록된 채팅이 없습니다.</td></tr>';
+        } else {
+            chatBody.innerHTML = chats.map(c => {
+                const date = new Date(c.timestamp);
+                const timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}:${date.getSeconds().toString().padStart(2,'0')}`;
+                
+                const ipStr = c.ip || 'Unknown';
+                
+                let contentHtml = '';
+                if (c.type === 'image') {
+                    contentHtml = `<img src="${c.content}" style="max-height: 30px; border-radius: 4px;"> <span style="font-size:11px; color:#888;">(이모티콘)</span>`;
+                } else {
+                    const safeContent = c.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    contentHtml = safeContent;
+                }
 
-            // 3. 뮤트 목록
-            const muteRes = await fetch(`/api/admin/mutes?pw=${pw}`);
-            const mutes = await muteRes.json();
-            const muteBody = document.querySelector('#muteTable tbody');
-            
-            if (mutes.length === 0) {
-                muteBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#666;">현재 뮤트된 유저가 없습니다.</td></tr>';
-            } else {
-                muteBody.innerHTML = mutes.map(m => `
+                return `
                     <tr>
-                        <td><b>${m.nick}</b> (${m.id})</td>
-                        <td><span style="color:#e74c3c; font-weight:bold;">MUTED</span></td>
-                        <td><button class="btn-unban" onclick="unmute('${m.id}')">뮤트 해제</button></td>
+                        <td class="time-text">${timeStr}</td>
+                        <td><b style="color:#5dade2;">${c.user.nick}</b><br><span style="font-size:11px; color:#888;">${c.user.id}</span></td>
+                        <td><span class="badge-ip">${ipStr}</span></td>
+                        <td style="word-break: break-all;">${contentHtml}</td>
                     </tr>
-                `).join('');
-            }
-            document.getElementById('server-status').innerText = "ONLINE";
-            document.getElementById('server-status').style.color = "#2ecc71";
-        } catch (e) {
-            document.getElementById('server-status').innerText = "OFFLINE";
-            document.getElementById('server-status').style.color = "#e74c3c";
+                `;
+            }).join('');
         }
-    }
-    
-    // --- 관리자 액션 함수들 (함수 밖으로 분리) ---
 
-    async function manualBan() {
-        const ip = document.getElementById('manualIp').value.trim();
-        const nick = document.getElementById('manualNick').value.trim();
-        const reason = document.getElementById('manualReason').value.trim();
-        if(!ip) return alert("IP 주소를 입력해주세요.");
-        
+        document.getElementById('server-status').innerText = "ONLINE";
+        document.getElementById('server-status').style.color = "#2ecc71";
+
+    } catch (e) {
+        console.error("데이터 로드 에러:", e);
+        document.getElementById('server-status').innerText = "OFFLINE";
+        document.getElementById('server-status').style.color = "#e74c3c";
+    }
+} // loadData() 종료
+
+// 3. 관리자 액션 함수들 (pw 변수 로드 로직 추가)
+async function manualBan() {
+    const pw = new URLSearchParams(window.location.search).get('pw');
+    const ip = document.getElementById('manualIp').value.trim();
+    const nick = document.getElementById('manualNick').value.trim();
+    const reason = document.getElementById('manualReason').value.trim();
+    if(!ip) return alert("IP 주소를 입력해주세요.");
+    
+    const res = await fetch(`/api/admin/ban?pw=${pw}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip, id: 'manual', nick: nick || 'Unknown', reason: reason || '관리자 직접 차단' })
+    });
+    if(res.ok) { alert("수동 차단 완료"); loadData(); }
+}
+
+async function quickBan(ip, id, nick) {
+    const pw = new URLSearchParams(window.location.search).get('pw');
+    const reason = prompt(`${nick} 님의 차단 사유를 입력하세요`, "운영 정책 위반");
+    if(reason) {
         const res = await fetch(`/api/admin/ban?pw=${pw}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip, id: 'manual', nick: nick || 'Unknown', reason: reason || '관리자 직접 차단' })
+            body: JSON.stringify({ ip, id, nick, reason })
         });
-        if(res.ok) { alert("수동 차단 완료"); loadData(); }
+        if(res.ok) { alert("차단되었습니다."); loadData(); }
     }
+}
 
-    async function quickBan(ip, id, nick) {
-        const reason = prompt(`${nick} 님의 차단 사유를 입력하세요`, "운영 정책 위반");
-        if(reason) {
-            const res = await fetch(`/api/admin/ban?pw=${pw}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ip, id, nick, reason })
-            });
-            if(res.ok) { alert("차단되었습니다."); loadData(); }
+async function deleteReport(id) {
+    const pw = new URLSearchParams(window.location.search).get('pw');
+    if(confirm("이 신고를 기각하시겠습니까?")) {
+        const res = await fetch(`/api/admin/report/${id}?pw=${pw}`, { method: 'DELETE' });
+        if(res.ok) loadData();
+    }
+}
+
+async function unban(dbId) {
+    const pw = new URLSearchParams(window.location.search).get('pw');
+    if(confirm("차단을 해제하시겠습니까?")) {
+        const res = await fetch(`/api/admin/ban/${dbId}?pw=${pw}`, { method: 'DELETE' });
+        if(res.ok) loadData();
+    }
+}
+
+async function unmute(userId) {
+    const pw = new URLSearchParams(window.location.search).get('pw');
+    if(confirm(`${userId} 유저의 뮤트를 해제하시겠습니까?`)) {
+        const res = await fetch(`/api/admin/mute/${userId}?pw=${pw}`, { method: 'DELETE' });
+        if(res.ok) {
+            alert("뮤트가 해제되었습니다.");
+            loadData();
         }
     }
-
-    async function deleteReport(id) {
-        if(confirm("이 신고를 기각하시겠습니까?")) {
-            const res = await fetch(`/api/admin/report/${id}?pw=${pw}`, { method: 'DELETE' });
-            if(res.ok) loadData();
-        }
-    }
-
-    async function unban(dbId) {
-        if(confirm("차단을 해제하시겠습니까?")) {
-            const res = await fetch(`/api/admin/ban/${dbId}?pw=${pw}`, { method: 'DELETE' });
-            if(res.ok) loadData();
-        }
-    }
-
-    async function unmute(userId) {
-        if(confirm(`${userId} 유저의 뮤트를 해제하시겠습니까?`)) {
-            const res = await fetch(`/api/admin/mute/${userId}?pw=${pw}`, { method: 'DELETE' });
-            if(res.ok) {
-                alert("뮤트가 해제되었습니다.");
-                loadData();
-            }
-        }
-    }
-
-    // 초기 실행 및 타이머 설정
-    loadData();
-    setInterval(loadData, 10000); 
+}
+ 
 </script>
 </body>
 </html>

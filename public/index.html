@@ -130,7 +130,6 @@
         const urlParams = new URLSearchParams(window.location.search);
         const myNick = urlParams.get('nick') || 'Guest_' + Math.floor(Math.random() * 100);
         const myId = urlParams.get('id') || 'guest';
-        const myId = urlParams.get('aid') || 'guest';
         const myAid = (urlParams.get('aid') || '').trim();
         let myIcon = urlParams.get('icon') || urlParams.get('con') || '';
         
@@ -601,6 +600,7 @@
     </script>
 </body>
 </html>
+
 
 
 

@@ -48,11 +48,12 @@ const UserSetting = mongoose.model('UserSetting', new mongoose.Schema({
     whisper: { type: Boolean, default: true }
 }));
 
+
+
 const quitUsers = new Map();
 const connectedUsers = {};
 let mutedUsers = {}; 
 
-// 🚨 [복구됨] 기존의 정상적인 유저 목록 전송 방식으로 되돌렸습니다. (중복 숨김 해제)
 const getUserListWithAdminStatus = () => {
     return Object.values(connectedUsers).map(u => ({
         ...u, isAdmin: ADMIN_IDS.includes(u.id)
@@ -64,6 +65,14 @@ const adminAuth = (req, res, next) => {
     if (clientPw === ADMIN_PW) next();
     else res.status(403).json({ error: "접근 권한이 없습니다." });
 };
+
+// 공지
+const Notice = mongoose.model('Notice', new mongoose.Schema({
+    content: { type: String, default: "" }
+}));
+let currentNotice = "";
+// 서버 켜질 때 DB에서 기존 공지 불러오기
+Notice.findOne().then(n => { if (n) currentNotice = n.content; }).catch(()=>{});
 
 // --- HTTP Route ---
 app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
@@ -148,6 +157,17 @@ app.delete('/api/admin/mute/:id', adminAuth, (req, res) => {
     }
 });
 
+// 공지
+app.get('/api/admin/notice', adminAuth, (req, res) => {
+    res.json({ notice: currentNotice });
+});
+app.post('/api/admin/notice', adminAuth, async (req, res) => {
+    currentNotice = req.body.notice || "";
+    await Notice.findOneAndUpdate({}, { content: currentNotice }, { upsert: true });
+    if (currentNotice) io.emit('notice message', currentNotice);
+    res.json({ success: true });
+});
+
 app.get('/api/emoticons', (req, res) => {
     const emoticonsDir = path.join(__dirname, 'public', 'emoticons');
     fs.readdir(emoticonsDir, (err, files) => {
@@ -184,7 +204,6 @@ io.on('connection', async (socket) => {
         let finalNick = userData.nick;
         const currentUsers = Object.values(connectedUsers);
         
-        // 🚨 [복구됨] 원래 회원님이 쓰시던 정상적인 IP/ID 중복 검사 로직 복구! (_(1) 표시됨)
         const duplicates = currentUsers.filter(u => 
             u.id === userData.id || 
             (u.ip === clientIp && clientIp !== "unknown" && !clientIp.startsWith("10.") && !clientIp.startsWith("127."))
@@ -215,6 +234,8 @@ io.on('connection', async (socket) => {
             ]
         }).sort({ timestamp: -1 }).limit(30).then(history => {
             if (history.length > 0) socket.emit('chat history', history.reverse()); 
+            if (currentNotice.trim() !== "") {socket.emit('notice message', currentNotice);}
+            
         }).catch(err => {});
         
         io.emit('user list', getUserListWithAdminStatus());

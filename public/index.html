@@ -210,8 +210,12 @@
         socket.on('chat history', (h) => h.forEach(d => displayMessage(d)));
         socket.on('chat message', (d) => displayMessage(d));
         socket.on('whisper', (d) => {
-            const prefix = (d.user.nick === myNick) ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
-            displayMessage(d, true, prefix);
+
+            const replyTarget = (d.user.nick === myNick) ? d.targetNick : d.user.nick;
+            const prefixText = (d.user.nick === myNick) ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
+
+            const prefixHtml = `<span class="reply-btn" data-nick="${replyTarget}" style="cursor: pointer; text-decoration: underline;" title="답장하기">${prefixText}</span>`;
+            displayMessage(d, true, prefixHtml);
         });
         socket.on('call alert', (data) => {
             document.getElementById('call-sound').play().catch(() => {});
@@ -286,7 +290,14 @@
             document.body.innerHTML = ""; 
             window.stop(); 
         });
-
+        document.addEventListener('click', (e) => {
+            // 🚨 추가: [From 닉네임] 글자를 눌렀을 때 즉시 답장 폼 채우기
+            if (e.target.classList.contains('reply-btn')) {
+                const targetNick = e.target.getAttribute('data-nick');
+                input.value = `/w "${targetNick}" `; // 입력창에 귓말 명령어 세팅
+                input.focus(); // 즉시 커서 활성화
+                return;
+            }
         // 🚨 닫기 버튼 삭제 및 외부 클릭 시 닫히도록 완벽 구현
         document.addEventListener('click', (e) => {
             // 유저 팝업 처리
@@ -318,9 +329,31 @@
                     adminControls.style.display = 'none';
                 }
 
-                userPopup.style.display = 'flex';
-                userPopup.style.left = Math.min(e.pageX + 10, window.innerWidth - 120) + 'px';
-                userPopup.style.top = Math.min(e.pageY + 10, window.innerHeight - 160) + 'px';
+                userPopup.style.display = 'flex'; // 먼저 화면에 띄워야 크기를 계산할 수 있음
+
+                // 1. 팝업의 실제 너비와 높이 가져오기
+                const popWidth = userPopup.offsetWidth;
+                const popHeight = userPopup.offsetHeight;
+
+                // 2. 가로 위치 계산 (오른쪽 벽에 부딪히면 마우스 왼쪽으로 배치)
+                let posX = e.pageX + 10;
+                if (posX + popWidth > window.innerWidth) {
+                    posX = e.pageX - popWidth - 5;
+                }
+
+                // 3. 세로 위치 계산 (아래쪽 벽에 부딪히면 마우스 위쪽으로 배치)
+                let posY = e.pageY + 10;
+                if (posY + popHeight > window.innerHeight) {
+                    posY = e.pageY - popHeight - 5;
+                }
+
+                // 4. (예외 처리) 아이프레임이 너무 작아서 위로 올렸는데도 천장을 뚫는 경우 방어
+                posY = Math.max(0, posY);
+                posX = Math.max(0, posX);
+
+                // 5. 최종 위치 적용
+                userPopup.style.left = posX + 'px';
+                userPopup.style.top = posY + 'px';
             } else if (!userPopup.contains(e.target)) {
                 userPopup.style.display = 'none';
             }
@@ -459,7 +492,11 @@
         const resizer = document.getElementById('resizer');
         const userListCont = document.getElementById('user-list-container');
         let isResizing = false;
-        resizer.addEventListener('mousedown', () => { isResizing = true; document.body.style.userSelect = 'none'; });
+        resizer.addEventListener('mousedown', () => { 
+            isResizing = true; 
+            document.body.style.userSelect = 'none'; 
+            userListCont.style.transition = 'none'; 
+        });
         document.addEventListener('mousemove', (e) => {
             if (isResizing) {
                 const offsetRight = document.body.offsetWidth - e.pageX;
@@ -467,7 +504,11 @@
             }
             mouseX = e.pageX; mouseY = e.pageY;
         });
-        document.addEventListener('mouseup', () => { isResizing = false; document.body.style.userSelect = 'auto'; });
+        document.addEventListener('mouseup', () => { 
+            isResizing = false; 
+            document.body.style.userSelect = 'auto'; 
+            userListCont.style.transition = '';
+        });
 
         let mouseX, mouseY, tooltipTimeout;
         
@@ -520,3 +561,4 @@
     </script>
 </body>
 </html>
+

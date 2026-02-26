@@ -242,6 +242,7 @@
             const replyTarget = isMe ? d.targetNick : d.user.nick;
             const prefixText = isMe ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
             const prefixHtml = `<span class="reply-btn" data-nick="${replyTarget}" style="cursor: pointer; text-decoration: none;" title="답장하기">${prefixText}</span>`;
+            if (d.content.includes('/emoticons/')) { d.type = 'image';}
             displayMessage(d, true, prefixHtml);
         });
 
@@ -603,6 +604,7 @@
     </script>
 </body>
 </html>
+
 
 
 

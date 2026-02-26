@@ -132,12 +132,11 @@
         const myId = urlParams.get('id') || 'guest';
         const myAid = (urlParams.get('aid') || '').trim();
         let myIcon = urlParams.get('icon') || urlParams.get('con') || '';
-        
 
         const fixPath = (p) => (p && (p.startsWith('.') || p.startsWith('/'))) ? 'http://forceofd.org/dt/' + p.replace(/^\.?\//, '') : p;
         myIcon = fixPath(myIcon);
+        
         const myInfo = { nick: myNick, id: myId, icon: myIcon, aid: myAid };
-
         let isAdmin = false;
         let selectedUser = null;
         const localMutedIds = new Set();
@@ -600,6 +599,7 @@
     </script>
 </body>
 </html>
+
 
 
 

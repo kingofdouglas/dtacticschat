@@ -201,11 +201,8 @@ io.on('connection', async (socket) => {
         }
     } catch (err) {}
     
-    socket.on('join', async (userData) => { 
-        let finalNick = userData.nick;
-        const currentUsers = Object.values(connectedUsers);
-
-        // 1. aid 추출 및 보안 검증
+socket.on('join', async (userData) => { 
+        // 1. 보안 검증 (기존 동일)
         const providedAid = userData.aid ? userData.aid.trim() : "";
         if (providedAid !== "" && !ADMIN_IDS.includes(providedAid)) {
             socket.emit('system message', '⚠️ 잘못된 접근 입니다.');
@@ -213,32 +210,46 @@ io.on('connection', async (socket) => {
             return; 
         }
 
-        // 2. 어드민 판정
         const isAdminUser = providedAid !== "" && ADMIN_IDS.includes(providedAid);
+        const existingSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].id === userData.id);
         
-        // 3. 중복 닉네임 처리
-        const duplicates = currentUsers.filter(u => 
-            u.id === userData.id || 
+        if (existingSocketId && existingSocketId !== socket.id) {
+            // 이전 소켓(창)에 메시지를 보내고 강제로 끊어버립니다.
+            const oldSocket = io.sockets.sockets.get(existingSocketId);
+            if (oldSocket) {
+                oldSocket.emit('system message', '다른 곳에서 로그인하여 연결이 끊어졌습니다.');
+                oldSocket.disconnect(true);
+            }
+            // 접속자 목록에서 삭제하여 새 연결에 찌꺼기가 남지 않게 합니다.
+            delete connectedUsers[existingSocketId];
+            console.log(`[중복 접속 처리] ID: ${userData.id} 의 이전 연결을 끊었습니다.`);
+        }
+        let finalNick = userData.nick;
+        const currentActiveUsers = Object.values(connectedUsers);
+        const duplicates = currentActiveUsers.filter(u => 
+            u.nick === userData.nick || 
             (u.ip === clientIp && clientIp !== "unknown" && !clientIp.startsWith("10.") && !clientIp.startsWith("127."))
         ).length;
-        if (duplicates > 0) finalNick = `${userData.nick}_(${duplicates})`;
+        if (duplicates > 0) {
+            finalNick = `${userData.nick}_(${duplicates})`;
+        }
 
-        // 4. 최종 유저 데이터 생성 (isAdmin을 확실히 포함)
+        // 3. 최종 유저 데이터 생성
         const finalUserData = { 
             ...userData, 
             nick: finalNick, 
             ip: clientIp, 
-            isAdmin: isAdminUser // 👈 이 값이 매우 중요함
+            isAdmin: isAdminUser 
         };
         
-        // 5. 소켓 및 접속자 목록에 저장
+        // 4. 소켓 및 접속자 목록에 저장
         socket.user = finalUserData;
         connectedUsers[socket.id] = finalUserData;
         
-        // 6. 권한 부여 (클라이언트에 알림)
+        // 5. 권한 부여 (클라이언트에 알림)
         if (isAdminUser) socket.emit('admin auth', true);
 
-        // 7. 개인 설정 로드 (기존 코드 유지)
+        // 6. 개인 설정 로드
         try {
             let settings = await UserSetting.findOne({ id: userData.id });
             if (!settings) settings = await UserSetting.create({ id: userData.id, notify: true, whisper: true });
@@ -248,7 +259,7 @@ io.on('connection', async (socket) => {
             finalUserData.settings = { notify: true, whisper: true };
         }
 
-        // 8. 히스토리 불러오기 (기존 코드 유지)
+        // 7. 히스토리 불러오기
         Chat.find({
             $or: [
                 { type: { $ne: 'whisper' } },
@@ -261,7 +272,7 @@ io.on('connection', async (socket) => {
             if (currentNotice.trim() !== "") { socket.emit('notice message', currentNotice); }
         }).catch(err => {});
         
-        // 9. 전체 유저 목록 갱신 (이때 isAdmin 상태가 전달됨)
+        // 8. 전체 유저 목록 갱신
         io.emit('user list', getUserListWithAdminStatus());
     });
     

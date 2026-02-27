@@ -19,29 +19,7 @@ const adminEnv = process.env.ADMIN_IDS || '';
 const ADMIN_IDS = adminEnv ? adminEnv.split(',').map(id => id.trim()) : [];
 const ADMIN_PW = process.env.ADMIN_PASSWORD || '1234';
 
-// 3. DB 연결 및 Capped Collection 완전 안전 생성 로직
-mongoose.connect(process.env.MONGODB_URI)
-    .then(async () => {
-        console.log('✅ DB 연결 성공');
-        
-        const db = mongoose.connection.db;
-        const collections = await db.listCollections({ name: 'archivedchats' }).toArray();
-
-        if (collections.length > 0) {
-            const options = await db.collection('archivedchats').options();
-            if (!options.capped) {
-                console.log("⚠️ archivedchats가 일반 컬렉션입니다. Capped 컬렉션으로 재생성합니다...");
-                await db.collection('archivedchats').drop();
-                await db.createCollection('archivedchats', { capped: true, size: 209715200 });
-            }
-        } else {
-            await db.createCollection('archivedchats', { capped: true, size: 209715200 });
-            console.log("✅ ArchivedChat capped collection 생성 완료");
-        }
-    })
-    .catch(err => console.error('❌ DB 연결 실패:', err));
-
-// 4. DB 스키마 정의 (versionKey 제거 및 인덱스 추가)
+// 3. DB 스키마 정의 (모델을 먼저 선언하되, 자동 생성을 끕니다)
 const Report = mongoose.model('Report', new mongoose.Schema({
     targetNick: String, targetId: String, targetIp: String,
     reporter: String, date: { type: Date, default: Date.now }
@@ -61,9 +39,10 @@ const chatSchema = new mongoose.Schema({
 chatSchema.index({ timestamp: -1 });
 const Chat = mongoose.model('Chat', chatSchema);
 
+// 🚨 [수정 2] Mongoose가 제멋대로 일반 컬렉션으로 만드는 것을 방지 (autoCreate: false)
 const archivedChatSchema = new mongoose.Schema({
     type: String, user: Object, ip: String, content: String, targetNick: String, timestamp: Date
-}, { versionKey: false }); // capped 중복 옵션 제거됨
+}, { versionKey: false, autoCreate: false }); 
 archivedChatSchema.index({ timestamp: -1 });
 const ArchivedChat = mongoose.model('ArchivedChat', archivedChatSchema);
 
@@ -73,6 +52,30 @@ const UserSetting = mongoose.model('UserSetting', new mongoose.Schema({
 }, { versionKey: false }));
 
 const Filter = mongoose.model('Filter', new mongoose.Schema({ word: String }, { versionKey: false }));
+
+// 4. DB 연결 및 Capped Collection 강제 보장 로직
+mongoose.connect(process.env.MONGODB_URI)
+    .then(async () => {
+        console.log('✅ DB 연결 성공');
+        
+        const db = mongoose.connection.db;
+        const collections = await db.listCollections({ name: 'archivedchats' }).toArray();
+
+        // 🚨 컬렉션이 이미 있다면 capped인지 확인하고, 아니면 엎어버리고 새로 만듦
+        if (collections.length > 0) {
+            const options = await db.collection('archivedchats').options();
+            if (!options.capped) {
+                console.log("⚠️ archivedchats가 일반 컬렉션입니다. 재생성합니다...");
+                await db.collection('archivedchats').drop();
+                await db.createCollection('archivedchats', { capped: true, size: 209715200 });
+                console.log("✅ ArchivedChat capped collection 재생성 완료");
+            }
+        } else {
+            await db.createCollection('archivedchats', { capped: true, size: 209715200 });
+            console.log("✅ ArchivedChat capped collection 최초 생성 완료");
+        }
+    })
+    .catch(err => console.error('❌ DB 연결 실패:', err));
 
 // 금지어 정규식(Regex) 사전 컴파일 
 let badWords = []; 
@@ -107,6 +110,7 @@ const adminAuth = (req, res, next) => {
     else res.status(403).json({ error: "접근 권한이 없습니다." });
 };
 
+// 공지
 const Notice = mongoose.model('Notice', new mongoose.Schema({
     content: { type: String, default: "" }
 }));
@@ -120,11 +124,16 @@ app.get('/admin', (req, res) => {
     if (req.query.pw === ADMIN_PW) {
         res.sendFile(path.join(__dirname, 'public', 'admin.html'));
     } else {
-        res.status(403).send(`<script>const pw = prompt("관리자 비밀번호를 입력하세요."); if(pw) location.href = "/admin?pw=" + pw; else location.href = "/";</script>`);
+        res.status(403).send(`
+            <script>
+                const pw = prompt("관리자 비밀번호를 입력하세요.");
+                if(pw) location.href = "/admin?pw=" + pw;
+                else location.href = "/";
+            </script>
+        `);
     }
 });
 
-// 🚨 app.get 오타 수정 적용됨
 app.get('/api/admin/chats', adminAuth, async (req, res) => {
     try {
         const activeChats = await Chat.find().sort({ timestamp: -1 }).limit(1000).lean();
@@ -343,11 +352,12 @@ io.on('connection', async (socket) => {
         let safeContent = data.content;
         if (data.type !== 'image') safeContent = maskText(safeContent);
         
-        // 🚨 Date.now() 통일
-        const emitData = { type: data.type, user: data.user, ip: clientIp, content: safeContent, timestamp: Date.now() };
+        // 🚨 [수정 1 적용] Date.now() 대신 new Date() 객체 사용
+        const now = new Date();
+        const emitData = { type: data.type, user: data.user, ip: clientIp, content: safeContent, timestamp: now };
         io.emit('chat message', emitData);
         
-        const dbData = { type: data.type, user: data.user, ip: clientIp, content: data.content, timestamp: new Date() };
+        const dbData = { type: data.type, user: data.user, ip: clientIp, content: data.content, timestamp: now };
         Chat.create(dbData).catch(err => {});
     });              
 
@@ -367,13 +377,14 @@ io.on('connection', async (socket) => {
         let safeContent = data.content;
         if (!safeContent.includes('/emoticons/')) safeContent = maskText(safeContent);
     
-        // 🚨 구조 완벽 통일
+        // 🚨 [수정 1 적용] 귓속말도 new Date() 사용
+        const now = new Date();
         const emitData = { 
             type: 'whisper', user: socket.user, targetNick: data.targetNick, 
             ip: clientIp, targetId: targetUser ? targetUser.id : null, 
-            content: safeContent, timestamp: Date.now() 
+            content: safeContent, timestamp: now 
         };
-        const dbData = { ...emitData, content: data.content, timestamp: new Date() };
+        const dbData = { ...emitData, content: data.content, timestamp: now };
         
         if (targetSocketId) {
             if (targetUser.settings && targetUser.settings.whisper === false) {
@@ -476,79 +487,80 @@ io.on('connection', async (socket) => {
         }
     });
     
-    // 🚨 500개씩 나눠서 저장하는 메모리 폭발 방지 청소 (수동)
-    socket.on('clear chat', async () => {
-        if (socket.user && socket.user.isAdmin) {
-            try {
-                const cursor = Chat.find().lean().cursor();
-                let batch = [];
-
-                for await (const doc of cursor) {
-                    batch.push(doc);
-                    if (batch.length >= 500) {
-                        await ArchivedChat.insertMany(batch, { ordered: false });
-                        batch = [];
-                    }
-                }
-
-                if (batch.length > 0) {
+socket.on('clear chat', async () => {
+    if (socket.user && socket.user.isAdmin) {
+        try {
+            const cursor = Chat.find().lean().cursor();
+            let batch = [];
+            let idsToDelete = [];
+            for await (const doc of cursor) {
+                const { _id, ...plain } = doc;
+                batch.push(plain);
+                idsToDelete.push(_id);
+                if (batch.length >= 500) {
                     await ArchivedChat.insertMany(batch, { ordered: false });
+                    batch = [];
                 }
-
-                await Chat.deleteMany({});
-                io.emit('clear chat');     
-            } catch (err) {
-                console.error("채팅 청소 에러:", err);
             }
+            if (batch.length > 0) {
+                await ArchivedChat.insertMany(batch, { ordered: false });
+            }
+            if (idsToDelete.length > 0) {
+                await Chat.collection.deleteMany({ _id: { $in: idsToDelete } });
+            }
+            io.emit('clear chat');
+        } catch (err) {
+            console.error("채팅 청소 에러:", err);
         }
-    });
+    }
+});
 
     socket.on('disconnect', () => {
         if (socket.id && connectedUsers[socket.id]) {
             const u = connectedUsers[socket.id];
             quitUsers.set(u.id, u.ip);
             setTimeout(() => quitUsers.delete(u.id), 86400000); 
-
             delete connectedUsers[socket.id];
             io.emit('user list', getUserListWithAdminStatus());
         }
     });
 }); 
 
-// 🚨 500개씩 나눠서 저장하는 메모리 폭발 방지 청소 (자동 백그라운드)
 setInterval(async () => {
     try {
+
         const totalChats = await Chat.estimatedDocumentCount();
-        if (totalChats > 1000) {
-            const overflowCount = totalChats - 1000;
-            
-            const cursor = Chat.find().sort({ timestamp: 1 }).limit(overflowCount).lean().cursor(); 
-            let batch = [];
-            const idsToDelete = [];
+        if (totalChats <= 1000) return;
+        const overflowCount = totalChats - 1000;
+        const cursor = Chat.find()
+            .sort({ timestamp: 1 })
+            .limit(overflowCount)
+            .lean()
+            .cursor();
+        let batch = [];
+        let idsToDelete = [];
 
-            for await (const doc of cursor) {
-                batch.push(doc);
-                idsToDelete.push(doc._id);
-
-                if (batch.length >= 500) {
-                    await ArchivedChat.insertMany(batch, { ordered: false });
-                    batch = [];
-                }
-            }
-
-            if (batch.length > 0) {
+        for await (const doc of cursor) {
+            const { _id, ...plain } = doc;
+            batch.push(plain);
+            idsToDelete.push(_id);
+            if (batch.length >= 500) {
                 await ArchivedChat.insertMany(batch, { ordered: false });
+                batch = [];
             }
-            
-            if (idsToDelete.length > 0) {
-                await Chat.deleteMany({ _id: { $in: idsToDelete } });
-                console.log(`[시스템] 채팅 1000개 초과: ${idsToDelete.length}개의 과거 채팅을 보관소로 이동했습니다.`);
-            }
+        }
+        if (batch.length > 0) {
+            await ArchivedChat.insertMany(batch, { ordered: false });
+        }
+        if (idsToDelete.length > 0) {
+            await Chat.collection.deleteMany({ _id: { $in: idsToDelete } });
+            console.log(`[Archive] ${idsToDelete.length}개 archived`);
         }
     } catch (err) {
         console.error("백그라운드 청소 에러:", err);
     }
-}, 3600000); // 1시간마다 실행
+
+}, 3600000);
 
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => { console.log(`🚀 서버 실행 중: ${PORT}`); });

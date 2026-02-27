@@ -45,7 +45,8 @@ const Chat = mongoose.model('Chat', new mongoose.Schema({
 const UserSetting = mongoose.model('UserSetting', new mongoose.Schema({
     id: String,
     notify: { type: Boolean, default: true },
-    whisper: { type: Boolean, default: true }
+    whisper: { type: Boolean, default: true },
+    autoClear: { type: Boolean, default: true }
 }));
 
 
@@ -256,11 +257,11 @@ socket.on('join', async (userData) => {
         // 7. 개인 설정 로드
         try {
             let settings = await UserSetting.findOne({ id: userData.id });
-            if (!settings) settings = await UserSetting.create({ id: userData.id, notify: true, whisper: true });
-            finalUserData.settings = { notify: settings.notify, whisper: settings.whisper };
+            if (!settings) settings = await UserSetting.create({ id: userData.id, notify: true, whisper: true, autoClear: true });
+            finalUserData.settings = { notify: settings.notify, whisper: settings.whisper, autoClear: settings.autoClear !== false };
             socket.emit('load settings', finalUserData.settings); 
         } catch(e) {
-            finalUserData.settings = { notify: true, whisper: true };
+            finalUserData.settings = { notify: true, whisper: true, autoClear: true };
         }
 
         // 8. 히스토리 불러오기

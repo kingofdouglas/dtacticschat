@@ -160,19 +160,22 @@
         };
         */
         let isBannedState = false;
+        let isKicked = false;
         
-        socket.on('connect', () => {
-            if (window.joinTimer) clearTimeout(window.joinTimer);
-            window.joinTimer = setTimeout(() => {
-                socket.emit('join', myInfo);
-            }, 300);
+        socket.on('duplicate login', () => {
+            isKicked = true;
         });
-        
+        socket.on('connect', () => {
+            socket.emit('join', myInfo);
+        });
         socket.on('disconnect', () => {
-            if (!isBannedState) {
+            if (!isBannedState && !isKicked) { 
                 setTimeout(() => location.reload(), 1500); 
+            } else {
+                console.log("⚠️ 다른 곳에서 로그인하여 연결이 끊어졌습니다.");
             }
         });
+        
         socket.on('admin auth', () => { isAdmin = true; });
 
         const messages = document.getElementById('messages');
@@ -610,6 +613,7 @@
     </script>
 </body>
 </html>
+
 
 
 

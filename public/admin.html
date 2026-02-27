@@ -182,6 +182,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (banIp || banNick) document.getElementById('manualReason').focus();
 
     loadData(); 
+    document.getElementById('filterInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') addFilter();
+    });
 });
 
 async function loadFilters() {
@@ -228,9 +231,7 @@ async function deleteFilter(word) {
         if(res.ok) loadFilters();
     }
 }
-document.getElementById('filterInput').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') addFilter();
-});
+
     
 function showView(viewName) {
     document.getElementById('main-view').style.display = (viewName === 'main') ? 'block' : 'none';

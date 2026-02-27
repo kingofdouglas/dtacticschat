@@ -250,10 +250,10 @@ socket.on('join', async (userData) => {
         // 5. 권한 부여 (클라이언트에 알림)
         if (isAdminUser) socket.emit('admin auth', true);
     
-        // 8. 전체 유저 목록 갱신
+        // 6. 전체 유저 목록 갱신
         io.emit('user list', getUserListWithAdminStatus());
     
-        // 6. 개인 설정 로드
+        // 7. 개인 설정 로드
         try {
             let settings = await UserSetting.findOne({ id: userData.id });
             if (!settings) settings = await UserSetting.create({ id: userData.id, notify: true, whisper: true });
@@ -263,7 +263,7 @@ socket.on('join', async (userData) => {
             finalUserData.settings = { notify: true, whisper: true };
         }
 
-        // 7. 히스토리 불러오기
+        // 8. 히스토리 불러오기
         Chat.find({
             $or: [
                 { type: { $ne: 'whisper' } },

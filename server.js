@@ -203,6 +203,7 @@ io.on('connection', async (socket) => {
     } catch (err) {}
     
 socket.on('join', async (userData) => { 
+    
         // 1. 보안 검증 (기존 동일)
         const providedAid = userData.aid ? userData.aid.trim() : "";
         if (providedAid !== "" && !ADMIN_IDS.includes(providedAid)) {
@@ -210,7 +211,6 @@ socket.on('join', async (userData) => {
             socket.disconnect();
             return; 
         }
-
         const isAdminUser = providedAid !== "" && ADMIN_IDS.includes(providedAid);
         const existingSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].id === userData.id);
         
@@ -258,7 +258,7 @@ socket.on('join', async (userData) => {
         try {
             let settings = await UserSetting.findOne({ id: userData.id });
             if (!settings) settings = await UserSetting.create({ id: userData.id, notify: true, whisper: true, autoClear: true });
-            finalUserData.settings = { notify: settings.notify, whisper: settings.whisper, autoClear: settings.autoClear};
+            finalUserData.settings = { notify: settings.notify, whisper: settings.whisper, autoClear: settings.autoClear !== false};
             socket.emit('load settings', finalUserData.settings); 
         } catch(e) {
             finalUserData.settings = { notify: true, whisper: true, autoClear: true };

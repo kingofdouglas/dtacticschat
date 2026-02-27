@@ -129,7 +129,7 @@
         const socket = io();
         const urlParams = new URLSearchParams(window.location.search);
         const myNick = urlParams.get('nick') || 'Guest_' + Math.floor(Math.random() * 100);
-        const myId = urlParams.get('id') || 'guest';
+        const myId = (urlParams.get('id') || '').trim();
         const myAid = (urlParams.get('aid') || '').trim();
         let myIcon = urlParams.get('icon') || urlParams.get('con') || '';
 
@@ -165,9 +165,17 @@
         socket.on('duplicate login', () => {
             isKicked = true;
         });
-        socket.on('connect', () => {
-            socket.emit('join', myInfo);
-        });
+        
+        if (!myId) {
+            isKicked = true; // 자동 새로고침 방지
+            document.body.innerHTML = `<div style="color:#e74c3c; text-align:center; padding-top:50px; font-weight:bold; font-size:16px;">⚠️ 비정상적인 접근입니다.</div>`;
+            socket.disconnect(); // 서버와의 연결 즉시 종료
+        } else {
+            // 정상 ID가 있을 때만 서버에 조인 요청
+            socket.on('connect', () => {
+                socket.emit('join', myInfo);
+            });
+        }
         socket.on('disconnect', () => {
             if (!isBannedState && !isKicked) { 
                 setTimeout(() => location.reload(), 1500); 
@@ -613,6 +621,7 @@
     </script>
 </body>
 </html>
+
 
 
 

@@ -15,7 +15,7 @@ const adminEnv = process.env.ADMIN_IDS || '';
 const ADMIN_IDS = adminEnv ? adminEnv.split(',').map(id => id.trim()) : [];
 const ADMIN_PW = process.env.ADMIN_PASSWORD || '1234';
 
-// 3. MongoDB 연결
+// 3. DB 연결
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('✅ DB 연결 성공'))
     .catch(err => console.error('❌ DB 연결 실패:', err));

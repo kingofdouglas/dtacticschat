@@ -54,12 +54,15 @@
 <body>
 
 <div class="container">
-    <div class="header-row">
-        <h1>⚙️ Dtactics Chat Administration</h1>
+<div class="header-row">
+        <h1>⚙️ Dtactics Chat Admin</h1>
         <div>
-            <button class="btn-toggle" id="toggleBtn" onclick="toggleView()">채팅 기록 보기 💬</button>
+            <button class="btn-toggle" style="background: #9b59b6;" onclick="showView('main')">대시보드 🏠</button>
+            <button class="btn-toggle" style="background: #e67e22;" onclick="showView('chat')">채팅 기록 💬</button>
+            <button class="btn-toggle" style="background: #27ae60;" onclick="showView('filter')">금지어 설정 🚫</button>
             <button class="btn-refresh" onclick="loadData()">새로고침 🔄</button>
         </div>
+    </div>
     </div>
 
     <div id="main-view">
@@ -145,7 +148,23 @@
             <span id="pageInfo" style="margin: 0 20px; font-weight: bold; color: #5dade2;">1 / 1</span>
             <button onclick="changePage(1)" style="background: #444; color: white; padding: 6px 15px;">다음 ▶</button>
         </div>
-    </div> </div> <script>
+    </div>
+<div id="filter-view" style="display: none;">
+        <h2>🚫 금지어 관리 (Word Filtering)</h2>
+        <div class="ban-form">
+            <input type="text" id="filterInput" placeholder="차단할 단어를 입력하세요 (예: 바보)">
+            <button class="btn-ban" style="padding: 10px 20px;" onclick="addFilter()">금지어 등록</button>
+        </div>
+        <div class="table-wrapper">
+            <table id="filterTable">
+                <thead>
+                    <tr><th style="width: 80%;">등록된 금지어</th><th style="width: 20%; text-align: center;">관리</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div> <script>
 let allChats = []; 
 let filteredChats = []; 
 let currentPage = 1;
@@ -165,25 +184,60 @@ window.addEventListener('DOMContentLoaded', () => {
     loadData(); 
 });
 
-// --- 화면 전환 함수 ---
-function toggleView() {
-    const mainView = document.getElementById('main-view');
-    const chatView = document.getElementById('chat-view');
-    const toggleBtn = document.getElementById('toggleBtn');
-
-    if (currentView === 'main') {
-        mainView.style.display = 'none';
-        chatView.style.display = 'block';
-        toggleBtn.innerText = '메인 대시보드 보기 🏠';
-        toggleBtn.style.background = '#e67e22'; // 버튼 색상 변경 (주황)
-        currentView = 'chat';
-    } else {
-        mainView.style.display = 'block';
-        chatView.style.display = 'none';
-        toggleBtn.innerText = '채팅 기록 보기 💬';
-        toggleBtn.style.background = '#9b59b6'; // 버튼 색상 복구 (보라)
-        currentView = 'main';
+async function loadFilters() {
+    const pw = new URLSearchParams(window.location.search).get('pw');
+    const res = await fetch(`/api/admin/filters?pw=${pw}`);
+    const filters = await res.json();
+    
+    const tbody = document.querySelector('#filterTable tbody');
+    if(filters.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:#666;">등록된 금지어가 없습니다.</td></tr>';
+        return;
     }
+    
+    tbody.innerHTML = filters.map(f => `
+        <tr>
+            <td style="font-weight: bold; color: #ff6b6b;">${f.word}</td>
+            <td style="text-align: center;">
+                <button class="btn-dismiss" onclick="deleteFilter('${f.word}')">삭제</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function addFilter() {
+    const pw = new URLSearchParams(window.location.search).get('pw');
+    const word = document.getElementById('filterInput').value.trim();
+    if(!word) return alert("단어를 입력하세요.");
+
+    const res = await fetch(`/api/admin/filter?pw=${pw}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word })
+    });
+    if(res.ok) { 
+        document.getElementById('filterInput').value = '';
+        loadFilters(); 
+    }
+}
+
+async function deleteFilter(word) {
+    const pw = new URLSearchParams(window.location.search).get('pw');
+    if(confirm(`'${word}' 단어를 금지어에서 삭제하시겠습니까?`)) {
+        const res = await fetch(`/api/admin/filter/${encodeURIComponent(word)}?pw=${pw}`, { method: 'DELETE' });
+        if(res.ok) loadFilters();
+    }
+}
+document.getElementById('filterInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') addFilter();
+});
+    
+function showView(viewName) {
+    document.getElementById('main-view').style.display = (viewName === 'main') ? 'block' : 'none';
+    document.getElementById('chat-view').style.display = (viewName === 'chat') ? 'block' : 'none';
+    document.getElementById('filter-view').style.display = (viewName === 'filter') ? 'block' : 'none';
+    
+    if (viewName === 'filter') loadFilters(); // 필터 화면 열 때 목록 불러오기
 }
 
 async function loadData() {

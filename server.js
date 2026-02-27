@@ -258,7 +258,7 @@ socket.on('join', async (userData) => {
         try {
             let settings = await UserSetting.findOne({ id: userData.id });
             if (!settings) settings = await UserSetting.create({ id: userData.id, notify: true, whisper: true, autoClear: true });
-            finalUserData.settings = { notify: settings.notify, whisper: settings.whisper, autoClear: settings.autoClear !== false };
+            finalUserData.settings = { notify: settings.notify, whisper: settings.whisper, autoClear: settings.autoClear};
             socket.emit('load settings', finalUserData.settings); 
         } catch(e) {
             finalUserData.settings = { notify: true, whisper: true, autoClear: true };

@@ -1,7 +1,11 @@
 const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
-const io = require('socket.io')(http, { cors: { origin: "*" } });
+const io = require('socket.io')(http, { 
+    cors: { origin: "*" },
+    pingTimeout: 60000, 
+    pingInterval: 25000
+});
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
@@ -15,59 +19,86 @@ const adminEnv = process.env.ADMIN_IDS || '';
 const ADMIN_IDS = adminEnv ? adminEnv.split(',').map(id => id.trim()) : [];
 const ADMIN_PW = process.env.ADMIN_PASSWORD || '1234';
 
-// 3. DB 연결
+// 3. DB 연결 및 Capped Collection 완전 안전 생성 로직
 mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('✅ DB 연결 성공'))
+    .then(async () => {
+        console.log('✅ DB 연결 성공');
+        
+        const db = mongoose.connection.db;
+        const collections = await db.listCollections({ name: 'archivedchats' }).toArray();
+
+        if (collections.length > 0) {
+            const options = await db.collection('archivedchats').options();
+            if (!options.capped) {
+                console.log("⚠️ archivedchats가 일반 컬렉션입니다. Capped 컬렉션으로 재생성합니다...");
+                await db.collection('archivedchats').drop();
+                await db.createCollection('archivedchats', { capped: true, size: 209715200 });
+            }
+        } else {
+            await db.createCollection('archivedchats', { capped: true, size: 209715200 });
+            console.log("✅ ArchivedChat capped collection 생성 완료");
+        }
+    })
     .catch(err => console.error('❌ DB 연결 실패:', err));
 
-// DB 스키마 정의
+// 4. DB 스키마 정의 (versionKey 제거 및 인덱스 추가)
 const Report = mongoose.model('Report', new mongoose.Schema({
     targetNick: String, targetId: String, targetIp: String,
     reporter: String, date: { type: Date, default: Date.now }
-}));
+}, { versionKey: false }));
 
-const Ban = mongoose.model('Ban', new mongoose.Schema({
+const banSchema = new mongoose.Schema({
     ip: String, id: String, nick: String,
     reason: String, date: { type: Date, default: Date.now }
-}));
+}, { versionKey: false });
+banSchema.index({ ip: 1 });
+const Ban = mongoose.model('Ban', banSchema);
 
-// DB 스키마 채팅내역 (오프라인 귓말 지원)
-const Chat = mongoose.model('Chat', new mongoose.Schema({
-    type: String, 
-    user: Object, 
-    ip: String,   
-    content: String,
-    targetNick: String, 
-    timestamp: { type: Date, default: Date.now}
-}));
+const chatSchema = new mongoose.Schema({
+    type: String, user: Object, ip: String, content: String, targetNick: String, 
+    timestamp: { type: Date, default: Date.now }
+}, { versionKey: false });
+chatSchema.index({ timestamp: -1 });
+const Chat = mongoose.model('Chat', chatSchema);
 
-// DB 자동 삭제
-const ArchivedChat = mongoose.model('ArchivedChat', new mongoose.Schema({
+const archivedChatSchema = new mongoose.Schema({
     type: String, user: Object, ip: String, content: String, targetNick: String, timestamp: Date
-}, { capped: { size: 209715200 } })); /
+}, { versionKey: false }); // capped 중복 옵션 제거됨
+archivedChatSchema.index({ timestamp: -1 });
+const ArchivedChat = mongoose.model('ArchivedChat', archivedChatSchema);
 
-// 개인설정 저장
 const UserSetting = mongoose.model('UserSetting', new mongoose.Schema({
-    id: String,
-    notify: { type: Boolean, default: true },
-    whisper: { type: Boolean, default: true },
-    autoClear: { type: Boolean, default: true }
-}));
+    id: String, notify: { type: Boolean, default: true },
+    whisper: { type: Boolean, default: true }, autoClear: { type: Boolean, default: true }
+}, { versionKey: false }));
 
-// 필터링 단어 스키마 및 메모리 캐싱 변수
-const Filter = mongoose.model('Filter', new mongoose.Schema({ word: String }));
+const Filter = mongoose.model('Filter', new mongoose.Schema({ word: String }, { versionKey: false }));
+
+// 금지어 정규식(Regex) 사전 컴파일 
 let badWords = []; 
-Filter.find().then(f => badWords = f.map(x => x.word)).catch(()=>{});
+let compiledRegex = [];
+
+const updateFilters = (words) => {
+    badWords = words;
+    compiledRegex = words.map(w => ({ word: w, regex: new RegExp(w, 'gi') }));
+};
+Filter.find().then(f => updateFilters(f.map(x => x.word))).catch(()=>{});
+
+const maskText = (text) => {
+    if (!text) return text;
+    let masked = text;
+    compiledRegex.forEach(item => {
+        masked = masked.replace(item.regex, '*'.repeat(item.word.length)); 
+    });
+    return masked;
+};
 
 const quitUsers = new Map();
 const connectedUsers = {};
 let mutedUsers = {}; 
 
 const getUserListWithAdminStatus = () => {
-    return Object.values(connectedUsers).map(u => ({
-        ...u, 
-        isAdmin: u.isAdmin
-    }));
+    return Object.values(connectedUsers).map(u => ({ ...u, isAdmin: u.isAdmin }));
 };
 
 const adminAuth = (req, res, next) => {
@@ -76,12 +107,10 @@ const adminAuth = (req, res, next) => {
     else res.status(403).json({ error: "접근 권한이 없습니다." });
 };
 
-// 공지
 const Notice = mongoose.model('Notice', new mongoose.Schema({
     content: { type: String, default: "" }
 }));
 let currentNotice = "";
-// 서버 켜질 때 DB에서 기존 공지 불러오기
 Notice.findOne().then(n => { if (n) currentNotice = n.content; }).catch(()=>{});
 
 // --- HTTP Route ---
@@ -91,21 +120,14 @@ app.get('/admin', (req, res) => {
     if (req.query.pw === ADMIN_PW) {
         res.sendFile(path.join(__dirname, 'public', 'admin.html'));
     } else {
-        res.status(403).send(`
-            <script>
-                const pw = prompt("관리자 비밀번호를 입력하세요.");
-                if(pw) location.href = "/admin?pw=" + pw;
-                else location.href = "/";
-            </script>
-        `);
+        res.status(403).send(`<script>const pw = prompt("관리자 비밀번호를 입력하세요."); if(pw) location.href = "/admin?pw=" + pw; else location.href = "/";</script>`);
     }
 });
 
-pp.get('/api/admin/chats', adminAuth, async (req, res) => {
+// 🚨 app.get 오타 수정 적용됨
+app.get('/api/admin/chats', adminAuth, async (req, res) => {
     try {
-
         const activeChats = await Chat.find().sort({ timestamp: -1 }).limit(1000).lean();
-        
         const remaining = 1000 - activeChats.length;
         let archivedChats = [];
 
@@ -113,9 +135,9 @@ pp.get('/api/admin/chats', adminAuth, async (req, res) => {
             archivedChats = await ArchivedChat.find().sort({ timestamp: -1 }).limit(remaining).lean();
             archivedChats = archivedChats.map(c => ({ ...c, isArchived: true }));
         }
+        
         let combinedChats = [...activeChats, ...archivedChats];
         combinedChats.sort((a, b) => b.timestamp - a.timestamp);
-        
         res.json(combinedChats);
     } catch (err) { 
         res.status(500).json({ error: "채팅 기록 에러" }); 
@@ -123,7 +145,7 @@ pp.get('/api/admin/chats', adminAuth, async (req, res) => {
 });
 
 app.get('/api/admin/reports', adminAuth, async (req, res) => {
-    const reports = await Report.find().sort({ date: -1 });
+    const reports = await Report.find().sort({ date: -1 }).lean();
     res.json(reports);
 });
 
@@ -181,7 +203,6 @@ app.delete('/api/admin/mute/:id', adminAuth, (req, res) => {
     }
 });
 
-// 공지
 app.get('/api/admin/notice', adminAuth, (req, res) => {
     res.json({ notice: currentNotice });
 });
@@ -202,14 +223,14 @@ app.get('/api/emoticons', (req, res) => {
 });
 
 app.get('/api/admin/filters', adminAuth, async (req, res) => {
-    res.json(await Filter.find());
+    res.json(await Filter.find().lean());
 });
 
 app.post('/api/admin/filter', adminAuth, async (req, res) => {
     const word = req.body.word.trim();
     if (word && !badWords.includes(word)) {
         await Filter.create({ word });
-        badWords.push(word); 
+        updateFilters([...badWords, word]); 
     }
     res.json({ success: true });
 });
@@ -217,14 +238,13 @@ app.post('/api/admin/filter', adminAuth, async (req, res) => {
 app.delete('/api/admin/filter/:word', adminAuth, async (req, res) => {
     const word = req.params.word;
     await Filter.findOneAndDelete({ word });
-    badWords = badWords.filter(w => w !== word); 
+    updateFilters(badWords.filter(w => w !== word)); 
     res.json({ success: true });
 });
 
 // --- Socket.io ---
 io.on('connection', async (socket) => {
     
-    // IP 처리 로직
     let clientIp = socket.handshake.headers['x-forwarded-for'] || 
                    socket.handshake.headers['x-real-ip'] || 
                    socket.handshake.address || 
@@ -235,7 +255,7 @@ io.on('connection', async (socket) => {
     }
 
     try {
-        const isBanned = await Ban.findOne({ ip: clientIp });
+        const isBanned = await Ban.findOne({ ip: clientIp }).lean();
         if (isBanned) {
             socket.emit('system message', `차단된 IP입니다. (사유: ${isBanned.reason})`);
             socket.emit('banned user', {reason: isBanned.reason,date: isBanned.date});
@@ -244,9 +264,7 @@ io.on('connection', async (socket) => {
         }
     } catch (err) {}
     
-socket.on('join', async (userData) => { 
-    
-        // 1. 보안 검증 (기존 동일)
+    socket.on('join', async (userData) => { 
         const providedAid = userData.aid ? userData.aid.trim() : "";
         if (providedAid !== "" && !ADMIN_IDS.includes(providedAid)) {
             socket.emit('system message', '⚠️ 잘못된 접근 입니다.');
@@ -257,20 +275,17 @@ socket.on('join', async (userData) => {
         const existingSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].id === userData.id);
         
         if (existingSocketId && existingSocketId !== socket.id) {
-            // 이전 소켓(창)에 메시지를 보내고 강제로 끊어버립니다.
             const oldSocket = io.sockets.sockets.get(existingSocketId);
             if (oldSocket) {
                 oldSocket.emit('duplicate login'); 
                 oldSocket.emit('system message', '⚠️ 다른 곳에서 로그인하여 연결이 끊어졌습니다.');
                 oldSocket.disconnect(true);
             }
-            // 접속자 목록에서 삭제하여 새 연결에 찌꺼기가 남지 않게 합니다.
             delete connectedUsers[existingSocketId];
-            console.log(`[중복 접속 처리] ID: ${userData.id} 의 이전 연결을 끊었습니다.`);
         }
+        
         let finalNick = userData.nick;
-        const currentActiveUsers = Object.values(connectedUsers);
-        const duplicates = currentActiveUsers.filter(u => 
+        const duplicates = Object.values(connectedUsers).filter(u => 
             u.nick === userData.nick || 
             (u.ip === clientIp && clientIp !== "unknown" && !clientIp.startsWith("10.") && !clientIp.startsWith("127."))
         ).length;
@@ -278,46 +293,31 @@ socket.on('join', async (userData) => {
             finalNick = `${userData.nick}_(${duplicates})`;
         }
 
-        // 3. 최종 유저 데이터 생성
-        const finalUserData = { 
-            ...userData, 
-            nick: finalNick, 
-            ip: clientIp, 
-            isAdmin: isAdminUser 
-        };
-        
-        // 4. 소켓 및 접속자 목록에 저장
+        const finalUserData = { ...userData, nick: finalNick, ip: clientIp, isAdmin: isAdminUser };
         socket.user = finalUserData;
         connectedUsers[socket.id] = finalUserData;
         
-        // 5. 권한 부여 (클라이언트에 알림)
         if (isAdminUser) socket.emit('admin auth', true);
-    
-        // 6. 전체 유저 목록 갱신
         io.emit('user list', getUserListWithAdminStatus());
     
-        // 7. 개인 설정 로드
         try {
-            let settings = await UserSetting.findOne({ id: userData.id });
+            let settings = await UserSetting.findOne({ id: userData.id }).lean();
             if (!settings) settings = await UserSetting.create({ id: userData.id, notify: true, whisper: true, autoClear: true });
-            finalUserData.settings = { notify: settings.notify, whisper: settings.whisper, autoClear: settings.autoClear !== false};
-            socket.emit('load settings', finalUserData.settings); 
+            socket.emit('load settings', { notify: settings.notify, whisper: settings.whisper, autoClear: settings.autoClear !== false}); 
         } catch(e) {
-            finalUserData.settings = { notify: true, whisper: true, autoClear: true };
+            socket.emit('load settings', { notify: true, whisper: true, autoClear: true });
         }
 
-        // 8. 히스토리 불러오기
         Chat.find({
             $or: [
                 { type: { $ne: 'whisper' } },
-                { type: 'whisper', 'user.id': userData.id },
-                { type: 'whisper', targetId: userData.id },
-                { type: 'whisper', targetNick: userData.nick }
+                { 'user.id': userData.id, type: 'whisper' },
+                { targetId: userData.id, type: 'whisper' },
+                { targetNick: userData.nick, type: 'whisper' }
             ]
-        }).sort({ timestamp: -1 }).limit(50).then(history => {
+        }).sort({ timestamp: -1 }).limit(50).lean().then(history => {
             if (history.length > 0) {
-                const safeHistory = history.map(doc => {
-                    const obj = doc.toObject(); // 몽구스 객체를 일반 JS 객체로 변환
+                const safeHistory = history.map(obj => {
                     if (obj.type !== 'image' && !obj.content.includes('/emoticons/')) {
                         obj.content = maskText(obj.content);
                     }
@@ -327,8 +327,6 @@ socket.on('join', async (userData) => {
             }
             if (currentNotice.trim() !== "") { socket.emit('notice message', currentNotice); }
         }).catch(err => {});
-        
-
     });
     
     socket.on('update settings', async (settings) => {
@@ -338,23 +336,18 @@ socket.on('join', async (userData) => {
         try { await UserSetting.updateOne({ id: socket.user.id }, { $set: settings }, { upsert: true }); } catch(e) {}
     });
 
-    const maskText = (text) => {
-        if (!text) return text;
-        let masked = text;
-        badWords.forEach(word => {
-            const regex = new RegExp(word, 'gi'); 
-            masked = masked.replace(regex, '*'.repeat(word.length)); 
-        });
-        return masked;
-    };
     socket.on('chat message', async (data) => {
         if (data.user.id === 'guest') return socket.emit('system message', '게스트는 채팅을 할 수 없습니다.');
         if (mutedUsers[data.user.id]) return socket.emit('system message', '관리자에 의해 채팅이 금지된 상태입니다.');
+        
         let safeContent = data.content;
         if (data.type !== 'image') safeContent = maskText(safeContent);
+        
+        // 🚨 Date.now() 통일
         const emitData = { type: data.type, user: data.user, ip: clientIp, content: safeContent, timestamp: Date.now() };
         io.emit('chat message', emitData);
-        const dbData = { type: data.type, user: data.user, ip: clientIp, content: data.content, timestamp: Date.now() };
+        
+        const dbData = { type: data.type, user: data.user, ip: clientIp, content: data.content, timestamp: new Date() };
         Chat.create(dbData).catch(err => {});
     });              
 
@@ -368,38 +361,35 @@ socket.on('join', async (userData) => {
     });
 
     socket.on('whisper', (data) => { 
-            // 닉네임으로 상대방 소켓 찾기
-            let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
-            let targetUser = targetSocketId ? connectedUsers[targetSocketId] : null;
-            let safeContent = data.content;
-            if (!safeContent.includes('/emoticons/')) safeContent = maskText(safeContent);
+        let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
+        let targetUser = targetSocketId ? connectedUsers[targetSocketId] : null;
         
-            const whisperData = { 
-                type: 'whisper', 
-                user: socket.user, 
-                targetNick: data.targetNick, 
-                ip: clientIp, 
-                targetId: targetUser ? targetUser.id : null,
-                content: safeContent, 
-                timestamp: Date.now() 
-            };
-            const dbData = { ...emitData, content: data.content };
-            if (targetSocketId) {
-                if (targetUser.settings && targetUser.settings.whisper === false) {
-                    return socket.emit('system message', `[안내] ${data.targetNick}님은 귓속말을 거부하고 있습니다.`);
-                }
-                io.to(targetSocketId).emit('whisper', whisperData); 
-            } else {
-                socket.emit('system message', `[안내] ${data.targetNick}님은 현재 오프라인입니다. (메시지는 남겨집니다)`);
+        let safeContent = data.content;
+        if (!safeContent.includes('/emoticons/')) safeContent = maskText(safeContent);
+    
+        // 🚨 구조 완벽 통일
+        const emitData = { 
+            type: 'whisper', user: socket.user, targetNick: data.targetNick, 
+            ip: clientIp, targetId: targetUser ? targetUser.id : null, 
+            content: safeContent, timestamp: Date.now() 
+        };
+        const dbData = { ...emitData, content: data.content, timestamp: new Date() };
+        
+        if (targetSocketId) {
+            if (targetUser.settings && targetUser.settings.whisper === false) {
+                return socket.emit('system message', `[안내] ${data.targetNick}님은 귓속말을 거부하고 있습니다.`);
             }
-            
-            socket.emit('whisper', emitData); // 내 화면에도 emitData 전송
-            Chat.create(dbData).catch(e => { console.error("귓말 저장 에러:", e); });
-        });
+            io.to(targetSocketId).emit('whisper', emitData); 
+        } else {
+            socket.emit('system message', `[안내] ${data.targetNick}님은 현재 오프라인입니다. (메시지는 남겨집니다)`);
+        }
+        
+        socket.emit('whisper', emitData); 
+        Chat.create(dbData).catch(e => { console.error("귓말 저장 에러:", e); });
+    });
 
     socket.on('call user', (data) => {
         let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
-        
         if (targetSocketId) {
             const targetUser = connectedUsers[targetSocketId];
             if (targetUser.settings && targetUser.settings.notify === false) {
@@ -450,7 +440,7 @@ socket.on('join', async (userData) => {
 
             if (!targetIp) {
                 try {
-                    const pastChat = await Chat.findOne({ "user.id": targetId }).sort({ timestamp: -1 });
+                    const pastChat = await Chat.findOne({ "user.id": targetId }).sort({ timestamp: -1 }).lean();
                     if (pastChat && pastChat.ip) { targetIp = pastChat.ip; targetNick = pastChat.user.nick + " (과거 기록)"; }
                 } catch (err) {}
             }
@@ -476,7 +466,7 @@ socket.on('join', async (userData) => {
 
             if (!targetIp) {
                 try {
-                    const pastChat = await Chat.findOne({ "user.id": targetId }).sort({ timestamp: -1 });
+                    const pastChat = await Chat.findOne({ "user.id": targetId }).sort({ timestamp: -1 }).lean();
                     if (pastChat && pastChat.ip) { targetIp = pastChat.ip; targetNick = pastChat.user.nick + " (과거 기록)"; }
                 } catch (err) {}
             }
@@ -486,15 +476,25 @@ socket.on('join', async (userData) => {
         }
     });
     
+    // 🚨 500개씩 나눠서 저장하는 메모리 폭발 방지 청소 (수동)
     socket.on('clear chat', async () => {
         if (socket.user && socket.user.isAdmin) {
             try {
-                const allChats = await Chat.find({});
-                
-                if (allChats.length > 0) {
-                    await ArchivedChat.insertMany(allChats);
+                const cursor = Chat.find().lean().cursor();
+                let batch = [];
+
+                for await (const doc of cursor) {
+                    batch.push(doc);
+                    if (batch.length >= 500) {
+                        await ArchivedChat.insertMany(batch, { ordered: false });
+                        batch = [];
+                    }
                 }
-                
+
+                if (batch.length > 0) {
+                    await ArchivedChat.insertMany(batch, { ordered: false });
+                }
+
                 await Chat.deleteMany({});
                 io.emit('clear chat');     
             } catch (err) {
@@ -513,27 +513,36 @@ socket.on('join', async (userData) => {
             io.emit('user list', getUserListWithAdminStatus());
         }
     });
-    
 }); 
 
+// 🚨 500개씩 나눠서 저장하는 메모리 폭발 방지 청소 (자동 백그라운드)
 setInterval(async () => {
     try {
-        const totalChats = await Chat.countDocuments();
+        const totalChats = await Chat.estimatedDocumentCount();
         if (totalChats > 1000) {
             const overflowCount = totalChats - 1000;
             
-            // 가장 오래된 채팅들(넘친 개수만큼) 찾기
-            const oldChats = await Chat.find().sort({ timestamp: 1 }).limit(overflowCount);
+            const cursor = Chat.find().sort({ timestamp: 1 }).limit(overflowCount).lean().cursor(); 
+            let batch = [];
+            const idsToDelete = [];
+
+            for await (const doc of cursor) {
+                batch.push(doc);
+                idsToDelete.push(doc._id);
+
+                if (batch.length >= 500) {
+                    await ArchivedChat.insertMany(batch, { ordered: false });
+                    batch = [];
+                }
+            }
+
+            if (batch.length > 0) {
+                await ArchivedChat.insertMany(batch, { ordered: false });
+            }
             
-            if (oldChats.length > 0) {
-                // 1. 보관소로 복사
-                await ArchivedChat.insertMany(oldChats);
-                
-                // 2. 일반 채팅방에서 삭제
-                const idsToDelete = oldChats.map(c => c._id);
+            if (idsToDelete.length > 0) {
                 await Chat.deleteMany({ _id: { $in: idsToDelete } });
-                
-                console.log(`[시스템] 채팅 1000개 초과: ${overflowCount}개의 과거 채팅을 보관소로 이동했습니다.`);
+                console.log(`[시스템] 채팅 1000개 초과: ${idsToDelete.length}개의 과거 채팅을 보관소로 이동했습니다.`);
             }
         }
     } catch (err) {

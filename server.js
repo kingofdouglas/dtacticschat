@@ -249,7 +249,10 @@ socket.on('join', async (userData) => {
         
         // 5. 권한 부여 (클라이언트에 알림)
         if (isAdminUser) socket.emit('admin auth', true);
-
+    
+        // 8. 전체 유저 목록 갱신
+        io.emit('user list', getUserListWithAdminStatus());
+    
         // 6. 개인 설정 로드
         try {
             let settings = await UserSetting.findOne({ id: userData.id });
@@ -273,8 +276,7 @@ socket.on('join', async (userData) => {
             if (currentNotice.trim() !== "") { socket.emit('notice message', currentNotice); }
         }).catch(err => {});
         
-        // 8. 전체 유저 목록 갱신
-        io.emit('user list', getUserListWithAdminStatus());
+
     });
     
     socket.on('update settings', async (settings) => {

@@ -49,7 +49,10 @@ const UserSetting = mongoose.model('UserSetting', new mongoose.Schema({
     autoClear: { type: Boolean, default: true }
 }));
 
-
+// 필터링 단어 스키마 및 메모리 캐싱 변수
+const Filter = mongoose.model('Filter', new mongoose.Schema({ word: String }));
+let badWords = []; 
+Filter.find().then(f => badWords = f.map(x => x.word)).catch(()=>{});
 
 const quitUsers = new Map();
 const connectedUsers = {};
@@ -179,6 +182,26 @@ app.get('/api/emoticons', (req, res) => {
     });
 });
 
+app.get('/api/admin/filters', adminAuth, async (req, res) => {
+    res.json(await Filter.find());
+});
+
+app.post('/api/admin/filter', adminAuth, async (req, res) => {
+    const word = req.body.word.trim();
+    if (word && !badWords.includes(word)) {
+        await Filter.create({ word });
+        badWords.push(word); 
+    }
+    res.json({ success: true });
+});
+
+app.delete('/api/admin/filter/:word', adminAuth, async (req, res) => {
+    const word = req.params.word;
+    await Filter.findOneAndDelete({ word });
+    badWords = badWords.filter(w => w !== word); 
+    res.json({ success: true });
+});
+
 // --- Socket.io ---
 io.on('connection', async (socket) => {
     
@@ -273,7 +296,16 @@ socket.on('join', async (userData) => {
                 { type: 'whisper', targetNick: userData.nick }
             ]
         }).sort({ timestamp: -1 }).limit(50).then(history => {
-            if (history.length > 0) socket.emit('chat history', history.reverse()); 
+            if (history.length > 0) {
+                const safeHistory = history.map(doc => {
+                    const obj = doc.toObject(); // 몽구스 객체를 일반 JS 객체로 변환
+                    if (obj.type !== 'image' && !obj.content.includes('/emoticons/')) {
+                        obj.content = maskText(obj.content);
+                    }
+                    return obj;
+                });
+                socket.emit('chat history', safeHistory.reverse()); 
+            }
             if (currentNotice.trim() !== "") { socket.emit('notice message', currentNotice); }
         }).catch(err => {});
         
@@ -287,13 +319,24 @@ socket.on('join', async (userData) => {
         try { await UserSetting.updateOne({ id: socket.user.id }, { $set: settings }, { upsert: true }); } catch(e) {}
     });
 
+    const maskText = (text) => {
+        if (!text) return text;
+        let masked = text;
+        badWords.forEach(word => {
+            const regex = new RegExp(word, 'gi'); 
+            masked = masked.replace(regex, '*'.repeat(word.length)); 
+        });
+        return masked;
+    };
     socket.on('chat message', async (data) => {
         if (data.user.id === 'guest') return socket.emit('system message', '게스트는 채팅을 할 수 없습니다.');
         if (mutedUsers[data.user.id]) return socket.emit('system message', '관리자에 의해 채팅이 금지된 상태입니다.');
-    
-        const msgData = { type: data.type, user: data.user, ip: clientIp, content: data.content, timestamp: Date.now() };
-        io.emit('chat message', msgData);
-        Chat.create(msgData).catch(err => {});
+        let safeContent = data.content;
+        if (data.type !== 'image') safeContent = maskText(safeContent);
+        const emitData = { type: data.type, user: data.user, ip: clientIp, content: safeContent, timestamp: Date.now() };
+        io.emit('chat message', emitData);
+        const dbData = { type: data.type, user: data.user, ip: clientIp, content: data.content, timestamp: Date.now() };
+        Chat.create(dbData).catch(err => {});
     });              
 
     socket.on('report user', async (target) => {
@@ -309,13 +352,15 @@ socket.on('join', async (userData) => {
             // 닉네임으로 상대방 소켓 찾기
             let targetSocketId = Object.keys(connectedUsers).find(sid => connectedUsers[sid].nick === data.targetNick);
             let targetUser = targetSocketId ? connectedUsers[targetSocketId] : null;
-            
+            let safeContent = data.content;
+            if (!safeContent.includes('/emoticons/')) safeContent = maskText(safeContent);
+        
             const whisperData = { 
                 type: 'whisper', 
                 user: socket.user, 
                 targetNick: data.targetNick, 
                 ip: clientIp, 
-                targetId: targetUser ? targetUser.id : null, // 🚨 상대방의 고유 ID도 함께 저장!
+                targetId: targetUser ? targetUser.id : null,
                 content: data.content, 
                 timestamp: Date.now() 
             };

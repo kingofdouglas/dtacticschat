@@ -98,6 +98,7 @@
                 <label style="display: flex; align-items: center; margin-bottom: 2px; font-size: 11px; cursor: pointer;">
                     <input type="checkbox" id="set-whisper" checked style="margin-right: 6px;"> 귓속말
                 </label>
+                <button id="btn-local-clear" style="width: 100%; padding: 4px 0; margin-top: 4px; background: #e74c3c; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold;">청소</button>
             </div>
 
             <form id="form" onsubmit="return false;">
@@ -499,11 +500,15 @@
         document.getElementById('emo-prev').onclick = () => { if(pg>1){ pg--; drawEmos(); } };
         document.getElementById('emo-next').onclick = () => { if(pg < Math.ceil(emos.length/10)){ pg++; drawEmos(); } };
 
-        // 🚨 수정됨: 전송 시 UI 박스를 활용하여 서버로 보냄
         document.getElementById('form').onsubmit = (e) => {
             e.preventDefault();
             const val = input.value.trim();
             if(!val) return;
+            if (val === '/청소') {
+                document.getElementById('messages').innerHTML = ''; // 화면 지우기
+                input.value = ''; 
+                return; 
+            }
             
             // 1. UI 태그 방식 (고정 귓속말)
             if (activeWhisperTarget) {
@@ -621,6 +626,7 @@
     </script>
 </body>
 </html>
+
 
 
 

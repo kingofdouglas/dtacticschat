@@ -46,8 +46,7 @@
         .admin-row { display: flex; align-items: center; justify-content: center; padding: 2px 0; }
         .admin-row button { width: auto !important; padding: 3px 8px !important; display: inline-block !important; }
         .admin-divider { color: #666; font-size: 10px; margin: 0 2px; }
-        .notice-msg { text-align: center; color: #f1c40f; font-size: 13px; margin: 8px 0;font-weight: bold;
-        }
+        .notice-msg { text-align: center; color: #f1c40f; font-size: 13px; margin: 8px 0;font-weight: bold; }
         #user-list-container {  width: 160px; display: flex; flex-direction: column; background: #2e2e2e; transition: width 0.2s ease-in-out; overflow: hidden; }
         #user-count-header { padding: 2px 0; font-size: 13px;  color: #ddd; background: transparent; border-bottom: 1px solid #1f1f1f; text-align: center; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center;gap: 5px;min-height: 10px; white-space: nowrap;}
         #users {  flex: 1; overflow-y: auto; list-style: none; padding: 3px 3px;  margin: 0; font-size: 12px; color: #ddd;}
@@ -58,6 +57,8 @@
         #emo-toggle-btn:hover, #btn-go-admin:hover { transform: rotate(45deg); opacity: 0.8; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #4a4a4a; }
+        
+        /* 🚨 설정창 너비 조정 (100px -> 110px) 및 디자인 개선 */
         #user-settings-modal {
             display: none; position: absolute; background: rgba(35,35,35,0.98); 
             border: 1px solid #444; padding: 8px 10px; border-radius: 8px; 
@@ -96,7 +97,7 @@
                 </div>
             </div>
 
-          <div id="user-settings-modal">
+            <div id="user-settings-modal">
                 <div style="display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 11px; color: #5dade2; margin-bottom: 6px; border-bottom: 1px solid #444; padding-bottom: 4px;">
                     <span>내 설정</span>
                     <span id="close-settings-btn" style="cursor: pointer; color: #888; font-size: 12px; line-height: 1;">✖</span>
@@ -166,13 +167,7 @@
             whisperTag.style.display = 'flex';
             document.getElementById('input').focus();
         }
-        /*
-        document.getElementById('whisper-cancel').onclick = () => {
-            activeWhisperTarget = null;
-            whisperTag.style.display = 'none';
-            document.getElementById('input').focus();
-        };
-        */
+
         let isBannedState = false;
         let isKicked = false;
         
@@ -181,15 +176,15 @@
         });
         
         if (!myId) {
-            isKicked = true; // 자동 새로고침 방지
+            isKicked = true; 
             document.body.innerHTML = `<div style="color:#e74c3c; text-align:center; padding-top:50px; font-weight:bold; font-size:16px;">⚠️ 비정상적인 접근입니다.</div>`;
-            socket.disconnect(); // 서버와의 연결 즉시 종료
+            socket.disconnect(); 
         } else {
-            // 정상 ID가 있을 때만 서버에 조인 요청
             socket.on('connect', () => {
                 socket.emit('join', myInfo);
             });
         }
+
         socket.on('disconnect', () => {
             if (!isBannedState && !isKicked) { 
                 setTimeout(() => location.reload(), 1500); 
@@ -230,6 +225,7 @@
                 : `${iconHtml}<span class="${nickClass} clickable-nick" data-nick="${data.user.nick}" data-id="${data.user.id}">${data.user.nick}:</span> ${contentHtml}`;
 
             messages.appendChild(item);
+            
             if (mySettings.autoClear && messages.children.length > 300) {
                 messages.removeChild(messages.firstChild);
             }
@@ -252,7 +248,7 @@
             };
         }
 
-            socket.on('chat history', (h) => {
+        socket.on('chat history', (h) => {
             document.getElementById('messages').innerHTML = ''; 
             h.forEach(d => {
                 if (d.type === 'whisper') {
@@ -271,7 +267,6 @@
         socket.on('chat message', (d) => displayMessage(d));
         
         socket.on('whisper', (d) => {
-            // 🚨 여기서도 myId를 기준으로 To/From을 결정합니다.
             const isMe = (d.user.id === myId);
             const replyTarget = isMe ? d.targetNick : d.user.nick;
             const prefixText = isMe ? `[To ${d.targetNick}]` : `[From ${d.user.nick}]`;
@@ -306,42 +301,49 @@
         
         socket.on('clear chat', () => { messages.innerHTML = ''; });
 
+        // 🚨 설정 관련 변수 및 동작 정의
         let mySettings = { notify: true, whisper: true, autoClear: true };
         const userSettingsModal = document.getElementById('user-settings-modal');
         const btnUserSetup = document.getElementById('btn-user-setup');
 
         socket.on('load settings', (settings) => {
-            mySettings = settings;
+            mySettings = { ...mySettings, ...settings };
             document.getElementById('set-notify').checked = mySettings.notify;
             document.getElementById('set-whisper').checked = mySettings.whisper;
             document.getElementById('set-auto-clear').checked = mySettings.autoClear;
         });
 
+        // 🚨 메뉴 팝업 위치 고정
         btnUserSetup.onclick = () => {
             if (userSettingsModal.style.display === 'none' || userSettingsModal.style.display === '') {
                 userSettingsModal.style.display = 'block';
                 const rect = btnUserSetup.getBoundingClientRect();
-                userSettingsModal.style.left = (rect.left - 85) + 'px'; 
-                userSettingsModal.style.top = (rect.top - 70) + 'px';
+                userSettingsModal.style.left = (rect.left - 95) + 'px'; // 110px에 맞춰서 좌측으로 조금 더 이동
+                userSettingsModal.style.top = (rect.top - 100) + 'px'; // 높이가 늘어나서 위로 더 이동
             } else {
                 userSettingsModal.style.display = 'none';
             }
         };
+
         document.getElementById('close-settings-btn').onclick = () => {
-                userSettingsModal.style.display = 'none';
-            };
+            userSettingsModal.style.display = 'none';
+        };
+
         document.getElementById('btn-local-clear').onclick = () => {
             document.getElementById('messages').innerHTML = '';
             userSettingsModal.style.display = 'none';
         };
+
         document.getElementById('set-notify').onchange = (e) => {
             mySettings.notify = e.target.checked;
             socket.emit('update settings', mySettings);
         };
+
         document.getElementById('set-whisper').onchange = (e) => {
             mySettings.whisper = e.target.checked;
             socket.emit('update settings', mySettings);
         };
+
         document.getElementById('set-auto-clear').onchange = (e) => {
             mySettings.autoClear = e.target.checked;
             socket.emit('update settings', mySettings);
@@ -442,7 +444,6 @@
             userPopup.style.display = 'none';
         };
 
-        // 🚨 수정됨: 유저 클릭 팝업에서 귓속말 버튼 누를 때 UI 박스 띄우기
         document.getElementById('btn-whisper').onclick = () => { 
             setWhisperMode(selectedUser.nick);
             userPopup.style.display='none'; 
@@ -506,7 +507,6 @@
                 const img = document.createElement('img');
                 img.src = `/emoticons/${f}`;
                 img.onclick = () => {
-                    // 🚨 수정됨: 이모티콘 보낼 때 현재 귓속말 모드인지 파악해서 보냄
                     if (activeWhisperTarget) {
                         socket.emit('whisper', { targetNick: activeWhisperTarget, user: myInfo, content: img.src });
                     } else {
@@ -527,21 +527,21 @@
         document.getElementById('emo-prev').onclick = () => { if(pg>1){ pg--; drawEmos(); } };
         document.getElementById('emo-next').onclick = () => { if(pg < Math.ceil(emos.length/10)){ pg++; drawEmos(); } };
 
+        // 🚨 폼 전송 이벤트
         document.getElementById('form').onsubmit = (e) => {
             e.preventDefault();
             const val = input.value.trim();
             if(!val) return;
             
             if (val === '/청소') {
-                document.getElementById('messages').innerHTML = ''; // 화면 지우기
+                document.getElementById('messages').innerHTML = ''; 
                 input.value = ''; 
                 return; 
             }
-            // 1. UI 태그 방식 (고정 귓속말)
+
             if (activeWhisperTarget) {
                 socket.emit('whisper', { targetNick: activeWhisperTarget, user: myInfo, content: val });
             } 
-            // 2. 혹시나 유저가 습관적으로 직접 /w 를 쳤을 때를 대비한 수동 모드 호환
             else if (val.startsWith('/w ')) {
                 let targetNick = "";
                 let content = "";
@@ -561,13 +561,11 @@
                     socket.emit('whisper', { targetNick: targetNick, user: myInfo, content: content });
                 }
             } 
-            // 3. 일반 채팅
             else {
                 socket.emit('chat message', { type: 'text', user: myInfo, content: val });
             }
             
             input.value = '';
-            // 🚨 주의: activeWhisperTarget을 여기서 null로 바꾸지 않으므로, 엔터를 쳐도 귓속말이 계속 고정 유지됩니다!
             emoPicker.style.display = 'none';
         };
 
@@ -641,7 +639,6 @@
             }
         };
 
-        // JS 오류 발생 시 조용히 복구
         let errorReloadCount = parseInt(sessionStorage.getItem('err_reload_count') || '0');
         if (errorReloadCount < 3) {
             window.addEventListener('error', function(e) {
@@ -653,29 +650,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

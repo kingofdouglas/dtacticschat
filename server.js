@@ -38,8 +38,13 @@ const Chat = mongoose.model('Chat', new mongoose.Schema({
     ip: String,   
     content: String,
     targetNick: String, 
-    timestamp: { type: Date, default: Date.now, expires: 2592000 }
+    timestamp: { type: Date, default: Date.now}
 }));
+
+// DB 자동 삭제
+const ArchivedChat = mongoose.model('ArchivedChat', new mongoose.Schema({
+    type: String, user: Object, ip: String, content: String, targetNick: String, timestamp: Date
+}, { capped: { size: 209715200 } })); /
 
 // 개인설정 저장
 const UserSetting = mongoose.model('UserSetting', new mongoose.Schema({
@@ -96,11 +101,25 @@ app.get('/admin', (req, res) => {
     }
 });
 
-app.get('/api/admin/chats', adminAuth, async (req, res) => {
+pp.get('/api/admin/chats', adminAuth, async (req, res) => {
     try {
-        const allChats = await Chat.find().sort({ timestamp: -1 }).limit(1000); 
-        res.json(allChats);
-    } catch (err) { res.status(500).json({ error: "채팅 기록 에러" }); }
+
+        const activeChats = await Chat.find().sort({ timestamp: -1 }).limit(1000).lean();
+        
+        const remaining = 1000 - activeChats.length;
+        let archivedChats = [];
+
+        if (remaining > 0) {
+            archivedChats = await ArchivedChat.find().sort({ timestamp: -1 }).limit(remaining).lean();
+            archivedChats = archivedChats.map(c => ({ ...c, isArchived: true }));
+        }
+        let combinedChats = [...activeChats, ...archivedChats];
+        combinedChats.sort((a, b) => b.timestamp - a.timestamp);
+        
+        res.json(combinedChats);
+    } catch (err) { 
+        res.status(500).json({ error: "채팅 기록 에러" }); 
+    }
 });
 
 app.get('/api/admin/reports', adminAuth, async (req, res) => {
@@ -361,10 +380,10 @@ socket.on('join', async (userData) => {
                 targetNick: data.targetNick, 
                 ip: clientIp, 
                 targetId: targetUser ? targetUser.id : null,
-                content: data.content, 
+                content: safeContent, 
                 timestamp: Date.now() 
             };
-    
+            const dbData = { ...emitData, content: data.content };
             if (targetSocketId) {
                 if (targetUser.settings && targetUser.settings.whisper === false) {
                     return socket.emit('system message', `[안내] ${data.targetNick}님은 귓속말을 거부하고 있습니다.`);
@@ -374,8 +393,8 @@ socket.on('join', async (userData) => {
                 socket.emit('system message', `[안내] ${data.targetNick}님은 현재 오프라인입니다. (메시지는 남겨집니다)`);
             }
             
-            socket.emit('whisper', whisperData); 
-            Chat.create(whisperData).catch(e => { console.error("귓말 저장 에러:", e); });
+            socket.emit('whisper', emitData); // 내 화면에도 emitData 전송
+            Chat.create(dbData).catch(e => { console.error("귓말 저장 에러:", e); });
         });
 
     socket.on('call user', (data) => {
@@ -469,8 +488,18 @@ socket.on('join', async (userData) => {
     
     socket.on('clear chat', async () => {
         if (socket.user && socket.user.isAdmin) {
-            await Chat.deleteMany({});
-            io.emit('clear chat');     
+            try {
+                const allChats = await Chat.find({});
+                
+                if (allChats.length > 0) {
+                    await ArchivedChat.insertMany(allChats);
+                }
+                
+                await Chat.deleteMany({});
+                io.emit('clear chat');     
+            } catch (err) {
+                console.error("채팅 청소 에러:", err);
+            }
         }
     });
 
@@ -486,6 +515,31 @@ socket.on('join', async (userData) => {
     });
     
 }); 
+
+setInterval(async () => {
+    try {
+        const totalChats = await Chat.countDocuments();
+        if (totalChats > 1000) {
+            const overflowCount = totalChats - 1000;
+            
+            // 가장 오래된 채팅들(넘친 개수만큼) 찾기
+            const oldChats = await Chat.find().sort({ timestamp: 1 }).limit(overflowCount);
+            
+            if (oldChats.length > 0) {
+                // 1. 보관소로 복사
+                await ArchivedChat.insertMany(oldChats);
+                
+                // 2. 일반 채팅방에서 삭제
+                const idsToDelete = oldChats.map(c => c._id);
+                await Chat.deleteMany({ _id: { $in: idsToDelete } });
+                
+                console.log(`[시스템] 채팅 1000개 초과: ${overflowCount}개의 과거 채팅을 보관소로 이동했습니다.`);
+            }
+        }
+    } catch (err) {
+        console.error("백그라운드 청소 에러:", err);
+    }
+}, 3600000); // 1시간마다 실행
 
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => { console.log(`🚀 서버 실행 중: ${PORT}`); });

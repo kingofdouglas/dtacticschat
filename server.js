@@ -217,7 +217,8 @@ socket.on('join', async (userData) => {
             // 이전 소켓(창)에 메시지를 보내고 강제로 끊어버립니다.
             const oldSocket = io.sockets.sockets.get(existingSocketId);
             if (oldSocket) {
-                oldSocket.emit('system message', '다른 곳에서 로그인하여 연결이 끊어졌습니다.');
+                oldSocket.emit('duplicate login'); 
+                oldSocket.emit('system message', '⚠️ 다른 곳에서 로그인하여 연결이 끊어졌습니다.');
                 oldSocket.disconnect(true);
             }
             // 접속자 목록에서 삭제하여 새 연결에 찌꺼기가 남지 않게 합니다.

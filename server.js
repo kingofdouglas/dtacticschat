@@ -346,7 +346,7 @@ socket.on('join', async (userData) => {
     });
 
     socket.on('mute user', (target) => { 
-        if (ADMIN_IDS.includes(socket.user?.id)) {
+        if (socket.user && socket.user.isAdmin) {
             let targetId, targetNick;
             if (target && typeof target === 'object') { targetId = target.id; targetNick = target.nick; } 
             else {
@@ -361,14 +361,14 @@ socket.on('join', async (userData) => {
     });
 
     socket.on('unmute user', (targetId) => {
-        if (ADMIN_IDS.includes(socket.user?.id)) {
+        if (socket.user && socket.user.isAdmin) {
             delete mutedUsers[targetId];
             socket.emit('system message', `[관리] 해당 유저의 뮤트를 해제했습니다.`);
         }
     });
 
     socket.on('get ip for ban', async (targetId) => { 
-        if (ADMIN_IDS.includes(socket.user?.id)) {
+        if (socket.user && socket.user.isAdmin) {
             const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
             let targetIp = null; let targetNick = targetId;
 
@@ -394,7 +394,7 @@ socket.on('join', async (userData) => {
     });
     
     socket.on('get user ip', async (targetId) => { 
-        if (ADMIN_IDS.includes(socket.user?.id)) {
+        if (socket.user && socket.user.isAdmin) {
             const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === targetId);
             let targetIp = null; let targetNick = targetId;
 
@@ -420,7 +420,7 @@ socket.on('join', async (userData) => {
     });
     
     socket.on('clear chat', async () => {
-        if (ADMIN_IDS.includes(socket.user?.id)) {
+        if (socket.user && socket.user.isAdmin) {
             await Chat.deleteMany({});
             io.emit('clear chat');     
         }

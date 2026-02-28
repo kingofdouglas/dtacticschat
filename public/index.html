@@ -172,6 +172,7 @@
 
         let isBannedState = false;
         let isKicked = false;
+        let reloadTimer;
         
         socket.on('duplicate login', () => {
             isKicked = true;
@@ -183,17 +184,25 @@
             socket.disconnect(); 
         } else {
             socket.on('connect', () => {
+                clearTimeout(reloadTimer);
                 socket.emit('join', myInfo);
             });
         }
 
         socket.on('disconnect', () => {
-            if (!isBannedState && !isKicked) { 
-                setTimeout(() => location.reload(), 1500); 
-            } else {
+            if (isKicked) { 
                 console.log("⚠️ 다른 곳에서 로그인하여 연결이 끊어졌습니다.");
+                return;
             }
+            if (isBannedState) { 
+                console.log("⚠️ 차단되어 접속이 불가능합니다. ");
+                return;
+            }
+            reloadTimer = setTimeout(() => {
+                location.reload();
+            }, 3000); 
         });
+        
         
         socket.on('admin auth', () => { isAdmin = true; });
 
@@ -663,4 +672,5 @@
     </script>
 </body>
 </html>
+
 

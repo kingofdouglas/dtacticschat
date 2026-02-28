@@ -386,8 +386,8 @@
         });
 
         socket.on('banned user', function(data) {
+            isBannedState = true;
             socket.disconnect();
-            document.body.innerHTML = ""; 
             window.stop(); 
         });
 
@@ -672,6 +672,7 @@
     </script>
 </body>
 </html>
+
 
 
 

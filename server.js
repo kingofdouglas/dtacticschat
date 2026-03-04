@@ -18,7 +18,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // 2. 환경 변수 및 보안 설정
 const adminEnv = process.env.ADMIN_IDS || '';
 const ADMIN_IDS = adminEnv ? adminEnv.split(',').map(id => id.trim()) : [];
-const ADMIN_PW = process.env.ADMIN_PASSWORD || '1234';
+const ADMIN_PW = process.env.ADMIN_PASSWORD';
 
 // 3. DB 스키마 정의 (모델을 먼저 선언하되, 자동 생성을 끕니다)
 const Report = mongoose.model('Report', new mongoose.Schema({

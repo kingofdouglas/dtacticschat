@@ -12,6 +12,7 @@ const mongoose = require('mongoose');
 
 // 1. 미들웨어 설정
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // ★ Perl 통신을 위해 추가됨
 app.use(express.static(path.join(__dirname, 'public')));
 
 // 2. 환경 변수 및 보안 설정
@@ -39,7 +40,6 @@ const chatSchema = new mongoose.Schema({
 chatSchema.index({ timestamp: -1 });
 const Chat = mongoose.model('Chat', chatSchema);
 
-// 🚨 [수정 2] Mongoose가 제멋대로 일반 컬렉션으로 만드는 것을 방지 (autoCreate: false)
 const archivedChatSchema = new mongoose.Schema({
     type: String, user: Object, ip: String, content: String, targetNick: String, timestamp: Date
 }, { versionKey: false, autoCreate: false }); 
@@ -61,7 +61,6 @@ mongoose.connect(process.env.MONGODB_URI)
         const db = mongoose.connection.db;
         const collections = await db.listCollections({ name: 'archivedchats' }).toArray();
 
-        // 🚨 컬렉션이 이미 있다면 capped인지 확인하고, 아니면 엎어버리고 새로 만듦
         if (collections.length > 0) {
             const options = await db.collection('archivedchats').options();
             if (!options.capped) {
@@ -119,6 +118,23 @@ Notice.findOne().then(n => { if (n) currentNotice = n.content; }).catch(()=>{});
 
 // --- HTTP Route ---
 app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
+
+// ★ [추가됨] Perl 게임 서버에서 시스템 로그를 쏠 때 받을 내부 API
+app.post('/api/syslog', (req, res) => {
+    const clientPw = req.body.pw;
+    const logHtml = req.body.html;
+
+    // 보안 검증
+    if (clientPw !== ADMIN_PW) {
+        return res.status(403).json({ error: "권한이 없습니다." });
+    }
+
+    if (logHtml) {
+        // 모든 소켓 클라이언트에게 로그 푸시
+        io.emit('system_log', logHtml);
+    }
+    res.json({ success: true });
+});
 
 app.get('/admin', (req, res) => {
     if (req.query.pw === ADMIN_PW) {
@@ -352,14 +368,13 @@ io.on('connection', async (socket) => {
         let safeContent = data.content;
         if (data.type !== 'image') safeContent = maskText(safeContent);
         
-        // 🚨 [수정 1 적용] Date.now() 대신 new Date() 객체 사용
         const now = new Date();
         const emitData = { type: data.type, user: data.user, ip: clientIp, content: safeContent, timestamp: now };
         io.emit('chat message', emitData);
         
         const dbData = { type: data.type, user: data.user, ip: clientIp, content: data.content, timestamp: now };
         Chat.create(dbData).catch(err => {});
-    });              
+    });             
 
     socket.on('report user', async (target) => {
         const targetSocket = [...io.sockets.sockets.values()].find(s => s.user && s.user.id === target.id);
@@ -377,7 +392,6 @@ io.on('connection', async (socket) => {
         let safeContent = data.content;
         if (!safeContent.includes('/emoticons/')) safeContent = maskText(safeContent);
     
-        // 🚨 [수정 1 적용] 귓속말도 new Date() 사용
         const now = new Date();
         const emitData = { 
             type: 'whisper', user: socket.user, targetNick: data.targetNick, 
@@ -487,33 +501,33 @@ io.on('connection', async (socket) => {
         }
     });
     
-socket.on('clear chat', async () => {
-    if (socket.user && socket.user.isAdmin) {
-        try {
-            const cursor = Chat.find().lean().cursor();
-            let batch = [];
-            let idsToDelete = [];
-            for await (const doc of cursor) {
-                const { _id, ...plain } = doc;
-                batch.push(plain);
-                idsToDelete.push(_id);
-                if (batch.length >= 500) {
-                    await ArchivedChat.insertMany(batch, { ordered: false });
-                    batch = [];
+    socket.on('clear chat', async () => {
+        if (socket.user && socket.user.isAdmin) {
+            try {
+                const cursor = Chat.find().lean().cursor();
+                let batch = [];
+                let idsToDelete = [];
+                for await (const doc of cursor) {
+                    const { _id, ...plain } = doc;
+                    batch.push(plain);
+                    idsToDelete.push(_id);
+                    if (batch.length >= 500) {
+                        await ArchivedChat.insertMany(batch, { ordered: false });
+                        batch = [];
+                    }
                 }
+                if (batch.length > 0) {
+                    await ArchivedChat.insertMany(batch, { ordered: false });
+                }
+                if (idsToDelete.length > 0) {
+                    await Chat.collection.deleteMany({ _id: { $in: idsToDelete } });
+                }
+                io.emit('clear chat');
+            } catch (err) {
+                console.error("채팅 청소 에러:", err);
             }
-            if (batch.length > 0) {
-                await ArchivedChat.insertMany(batch, { ordered: false });
-            }
-            if (idsToDelete.length > 0) {
-                await Chat.collection.deleteMany({ _id: { $in: idsToDelete } });
-            }
-            io.emit('clear chat');
-        } catch (err) {
-            console.error("채팅 청소 에러:", err);
         }
-    }
-});
+    });
 
     socket.on('disconnect', () => {
         if (socket.id && connectedUsers[socket.id]) {
@@ -528,7 +542,6 @@ socket.on('clear chat', async () => {
 
 setInterval(async () => {
     try {
-
         const totalChats = await Chat.estimatedDocumentCount();
         if (totalChats <= 1000) return;
         const overflowCount = totalChats - 1000;
